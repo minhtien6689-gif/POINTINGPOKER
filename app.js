@@ -18,7 +18,8 @@ const CHOP_ITEMS = [
     { key: 'doi_heo_do', name: '♥️♦️ Đôi Heo Đỏ', points: 4, desc: '+4đ / -4đ' },
     { key: 'ba_doi_thong', name: '🎴 3 Đôi Thông', points: 3, desc: '+3đ / -3đ' },
     { key: 'tu_quy', name: '👑 Tứ Quý', points: 4, desc: '+4đ / -4đ' },
-    { key: 'bon_doi_thong', name: '⚡ 4 Đôi Thông', points: 5, desc: '+5đ / -5đ' }
+    { key: 'bon_doi_thong', name: '⚡ 4 Đôi Thông', points: 5, desc: '+5đ / -5đ' },
+    { key: 'custom', name: '✏️ Tùy Chọn Số Điểm', points: 2, desc: 'Tự nhập điểm' }
 ];
 
 // Thứ tự 4 người chơi mặc định: Tường, Trang, Thư, Diễm (Theo đúng yêu cầu của Mr Tiến)
@@ -308,10 +309,36 @@ function parseVietnameseRoundSpeech(transcript, players) {
 
     // 3. Chặt Heo check
     if (clean.includes('chat')) {
-        const isRed = clean.includes('do');
-        const pts = isRed ? 2 : 1;
-        const itemKey = isRed ? 'heo_do' : 'heo_den';
-        const itemName = isRed ? '🔴 Heo Đỏ' : '🐷 Heo Đen';
+        let pts = 2;
+        let itemKey = 'heo_do';
+        let itemName = '🔴 Heo Đỏ';
+
+        if (clean.includes('bon doi thong') || clean.includes('4 doi thong')) {
+            pts = 5; itemKey = 'bon_doi_thong'; itemName = '⚡ 4 Đôi Thông';
+        } else if (clean.includes('tu quy')) {
+            pts = 4; itemKey = 'tu_quy'; itemName = '👑 Tứ Quý';
+        } else if (clean.includes('doi heo do')) {
+            pts = 4; itemKey = 'doi_heo_do'; itemName = '♥️♦️ Đôi Heo Đỏ';
+        } else if (clean.includes('ba doi thong') || clean.includes('3 doi thong')) {
+            pts = 3; itemKey = 'ba_doi_thong'; itemName = '🎴 3 Đôi Thông';
+        } else if (clean.includes('doi heo den')) {
+            pts = 2; itemKey = 'doi_heo_den'; itemName = '♠️♣️ Đôi Heo Đen';
+        } else if (clean.includes('heo den') || clean.includes('den')) {
+            pts = 1; itemKey = 'heo_den'; itemName = '🐷 Heo Đen';
+        } else if (clean.includes('heo do') || clean.includes('do')) {
+            pts = 2; itemKey = 'heo_do'; itemName = '🔴 Heo Đỏ';
+        }
+
+        // Tự nhận diện số điểm tùy chọn nếu người dùng nói số điểm cụ thể (VD: "chặt 6 điểm", "chặt 3 điểm", "phạt 5 điểm")
+        const ptsMatch = clean.match(/(?:chat|phat|duoc|an|tuy chon)\s+(?:.*?)(?:la\s+)?(\d+)\s*(?:diem|d)?/i) || clean.match(/(\d+)\s*(?:diem|d)\b/i);
+        if (ptsMatch) {
+            const parsedPts = parseInt(ptsMatch[1], 10);
+            if (!isNaN(parsedPts) && parsedPts > 0 && parsedPts <= 99) {
+                pts = parsedPts;
+                itemKey = 'custom';
+                itemName = `Pha Chặt Tùy Chọn (${pts}đ)`;
+            }
+        }
 
         let chopper = null;
         let chopped = null;
@@ -1618,6 +1645,17 @@ function openRoundInputModal() {
                                                     </select>
                                                     <button type="button" class="btn-delete-chop" data-chop-index="${cIdx}" title="Xóa pha chặt này">🗑️</button>
                                                 </div>
+                                                <!-- DÒNG BỔ SUNG: CHO PHÉP TỰ NHẬP SỐ ĐIỂM TÙY CHỌN -->
+                                                <div class="chop-custom-points-row">
+                                                    <span class="chop-points-label">🎯 Tự nhập số điểm:</span>
+                                                    <div class="chop-points-control">
+                                                        <button type="button" class="btn-chop-step btn-chop-minus" data-chop-index="${cIdx}" title="Giảm 1 điểm">−</button>
+                                                        <input type="number" class="select-input chop-custom-pts-input" data-chop-index="${cIdx}" 
+                                                               value="${chop.points || 1}" min="1" max="99" step="1" inputmode="numeric">
+                                                        <button type="button" class="btn-chop-step btn-chop-plus" data-chop-index="${cIdx}" title="Tăng 1 điểm">+</button>
+                                                        <span class="chop-pts-unit-badge">+${chop.points || 1}đ / -${chop.points || 1}đ</span>
+                                                    </div>
+                                                </div>
                                             </div>
                                         `).join('')}
                                     </div>
@@ -1892,6 +1930,60 @@ function openRoundInputModal() {
                     modalForm.chops[idx].itemKey = item.key;
                     modalForm.chops[idx].itemName = item.name;
                     modalForm.chops[idx].points = item.points;
+                    updateModalView();
+                }
+            });
+        });
+
+        // Tự nhập số điểm tùy chọn cho pha chặt heo / hàng
+        const ptsInputs = modalsRoot.querySelectorAll('.chop-custom-pts-input');
+        ptsInputs.forEach(input => {
+            input.addEventListener('change', e => {
+                const idx = parseInt(input.dataset.chopIndex, 10);
+                let val = parseInt(e.target.value, 10);
+                if (isNaN(val) || val < 1) val = 1;
+                if (val > 99) val = 99;
+                if (modalForm.chops[idx]) {
+                    modalForm.chops[idx].points = val;
+                    if (modalForm.chops[idx].itemKey === 'custom') {
+                        modalForm.chops[idx].itemName = `Pha Chặt Tùy Chọn (${val}đ)`;
+                    }
+                    updateModalView();
+                }
+            });
+        });
+
+        // Nút trừ điểm pha chặt (−)
+        const minusBtns = modalsRoot.querySelectorAll('.btn-chop-minus');
+        minusBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                Sound.playTap();
+                const idx = parseInt(btn.dataset.chopIndex, 10);
+                if (modalForm.chops[idx]) {
+                    const current = parseInt(modalForm.chops[idx].points, 10) || 1;
+                    const nextVal = Math.max(1, current - 1);
+                    modalForm.chops[idx].points = nextVal;
+                    if (modalForm.chops[idx].itemKey === 'custom') {
+                        modalForm.chops[idx].itemName = `Pha Chặt Tùy Chọn (${nextVal}đ)`;
+                    }
+                    updateModalView();
+                }
+            });
+        });
+
+        // Nút cộng điểm pha chặt (+)
+        const plusBtns = modalsRoot.querySelectorAll('.btn-chop-plus');
+        plusBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                Sound.playTap();
+                const idx = parseInt(btn.dataset.chopIndex, 10);
+                if (modalForm.chops[idx]) {
+                    const current = parseInt(modalForm.chops[idx].points, 10) || 1;
+                    const nextVal = Math.min(99, current + 1);
+                    modalForm.chops[idx].points = nextVal;
+                    if (modalForm.chops[idx].itemKey === 'custom') {
+                        modalForm.chops[idx].itemName = `Pha Chặt Tùy Chọn (${nextVal}đ)`;
+                    }
                     updateModalView();
                 }
             });
@@ -2388,12 +2480,33 @@ function handleAiAction(action) {
             const choppedId = findPlayerIdByName(choppedName);
             const itemKey = action.item || action.params?.item || 'heo_do';
             const item = CHOP_ITEMS.find(it => it.key === itemKey) || CHOP_ITEMS[1];
+            const customPts = parseInt(action.points || action.params?.points, 10);
+            const pts = (!isNaN(customPts) && customPts > 0) ? customPts : item.points;
+            const itemName = (!isNaN(customPts) && customPts > 0 && itemKey === 'custom') 
+                ? `Pha Chặt Tùy Chọn (${pts}đ)` 
+                : item.name;
 
             if (chopperId && choppedId && chopperId !== choppedId) {
                 Sound.playChop();
                 const chopper = state.players.find(p => p.id === chopperId);
                 const chopped = state.players.find(p => p.id === choppedId);
-                return `🔥 Ghi nhận pha chặt: ${chopper.name} chặt ${item.name} của ${chopped.name} (${item.desc})!`;
+
+                // Nếu popup nhập ván đang mở, thêm ngay pha chặt này vào modalForm
+                const modalsRoot = document.getElementById('modals-root');
+                if (modalsRoot && modalsRoot.children.length > 0 && typeof modalForm !== 'undefined') {
+                    modalForm.chops.push({
+                        id: 'chop_ai_' + Date.now(),
+                        chopperId,
+                        choppedId,
+                        itemKey,
+                        itemName,
+                        points: pts
+                    });
+                    updateModalView();
+                    return `🔥 Đã thêm pha chặt: ${chopper.name} chặt ${itemName} của ${chopped.name} (+${pts}đ / -${pts}đ)!`;
+                }
+
+                return `🔥 Ghi nhận pha chặt: ${chopper.name} chặt ${itemName} của ${chopped.name} (+${pts}đ / -${pts}đ)!`;
             }
             return null;
         }

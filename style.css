@@ -1652,6 +1652,74 @@ input:checked + .slider:before {
     border-radius: var(--radius-xs);
     font-size: 0.85rem;
 }
+/* Dòng tự nhập số điểm chặt heo tùy chọn */
+.chop-custom-points-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-top: 6px;
+    border-top: 1px dashed rgba(224, 184, 168, 0.55);
+}
+.chop-points-label {
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.chop-points-control {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.btn-chop-step {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-xs);
+    border: none;
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: var(--font-heading);
+    font-size: 1rem;
+    font-weight: 900;
+    box-shadow: var(--neu-flat);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--ease);
+}
+.btn-chop-step:hover {
+    box-shadow: var(--neu-raised-sm);
+    color: var(--primary);
+    transform: translateY(-1px);
+}
+.btn-chop-step:active {
+    box-shadow: var(--neu-inset-sm);
+    transform: translateY(0);
+}
+.chop-custom-pts-input {
+    width: 52px !important;
+    text-align: center;
+    padding: 4px 6px !important;
+    font-size: 0.92rem !important;
+    font-weight: 900 !important;
+    color: var(--primary) !important;
+    background: #FFF8F2 !important;
+    box-shadow: var(--neu-inset-sm) !important;
+    border: 1px solid rgba(255, 112, 67, 0.4) !important;
+}
+.chop-pts-unit-badge {
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: var(--primary);
+    background: rgba(255, 112, 67, 0.12);
+    padding: 4px 8px;
+    border-radius: var(--radius-pill);
+    white-space: nowrap;
+}
 .btn-add-chop {
     width: 100%;
     padding: 8px 14px;
