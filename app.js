@@ -148,9 +148,218 @@ class SoundFX {
             });
         } catch (e) { /* ignore */ }
     }
+
+    playVoiceListen() {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+        try {
+            const freqs = [440, 660, 880];
+            freqs.forEach((f, idx) => {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(f, this.ctx.currentTime + idx * 0.07);
+                gain.gain.setValueAtTime(0.12, this.ctx.currentTime + idx * 0.07);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + (idx + 1) * 0.07);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(this.ctx.currentTime + idx * 0.07);
+                osc.stop(this.ctx.currentTime + (idx + 1) * 0.07);
+            });
+        } catch (e) { /* ignore */ }
+    }
+
+    playVoiceSuccess() {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+        try {
+            const freqs = [587.33, 880];
+            freqs.forEach((f, idx) => {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(f, this.ctx.currentTime + idx * 0.09);
+                gain.gain.setValueAtTime(0.16, this.ctx.currentTime + idx * 0.09);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + (idx + 1) * 0.09 + 0.05);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(this.ctx.currentTime + idx * 0.09);
+                osc.stop(this.ctx.currentTime + (idx + 1) * 0.09 + 0.05);
+            });
+        } catch (e) { /* ignore */ }
+    }
+
+    playToiTrang() {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+        try {
+            const notes = [523.25, 659.25, 783.99, 1046.50, 1318.51];
+            notes.forEach((f, idx) => {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(f, this.ctx.currentTime + idx * 0.06);
+                gain.gain.setValueAtTime(0.15, this.ctx.currentTime + idx * 0.06);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + (idx + 1) * 0.06 + 0.1);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(this.ctx.currentTime + idx * 0.06);
+                osc.stop(this.ctx.currentTime + (idx + 1) * 0.06 + 0.1);
+            });
+        } catch (e) { /* ignore */ }
+    }
 }
 
 const Sound = new SoundFX();
+
+// Haptic vibration feedback for mobile devices
+function hapticFeedback(pattern = 15) {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try { navigator.vibrate(pattern); } catch (e) { /* ignore */ }
+    }
+}
+
+// Unlock Web Audio API on first user gesture for Mobile Safari / Android Chrome
+function unlockAudioOnGesture() {
+    const unlock = () => {
+        Sound.init();
+        ['click', 'touchstart', 'touchend', 'keydown'].forEach(evt => {
+            window.removeEventListener(evt, unlock);
+        });
+    };
+    ['click', 'touchstart', 'touchend', 'keydown'].forEach(evt => {
+        window.addEventListener(evt, unlock, { once: true, passive: true });
+    });
+}
+unlockAudioOnGesture();
+
+// ===== TIẾNG VIỆT VOICE NLP PARSER (TIẾN LÊN MIỀN NAM) =====
+function removeVietnameseAccents(str) {
+    if (!str) return '';
+    return str.normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd').replace(/Đ/g, 'D')
+        .toLowerCase();
+}
+
+function parseVietnameseRoundSpeech(transcript, players) {
+    const raw = (transcript || '').toLowerCase().trim();
+    const clean = removeVietnameseAccents(raw);
+
+    const result = {
+        isToiTrang: false,
+        toiTrangPlayerId: null,
+        ranks: {},
+        chops: [],
+        congPlayers: [],
+        denCongPlayerId: null,
+        recognizedText: transcript
+    };
+
+    // 1. Tới Trắng check
+    if (clean.includes('toi trang') || clean.includes('thang trang') || clean.includes('an trang')) {
+        result.isToiTrang = true;
+        for (const p of players) {
+            const pClean = removeVietnameseAccents(p.name);
+            if (clean.includes(pClean)) {
+                result.toiTrangPlayerId = p.id;
+                break;
+            }
+        }
+        return result;
+    }
+
+    // 2. Ranks check (1, 2, 3, 4)
+    const rankTerms = {
+        1: ['nhat', 've nhat', 'hang nhat', 'dung dau', 've dau', 'an', 'mot', '1'],
+        2: ['nhi', 've nhi', 'hang nhi', 'hai', '2'],
+        3: ['ba', 've ba', 'hang ba', 'thu ba', '3'],
+        4: ['chot', 've chot', 'bet', 've bet', 'bon', 'tu', 'hang bon', 'doi so', 'cuoi', '4']
+    };
+
+    players.forEach(p => {
+        const pClean = removeVietnameseAccents(p.name);
+        for (const [rankStr, terms] of Object.entries(rankTerms)) {
+            const rank = parseInt(rankStr, 10);
+            for (const term of terms) {
+                const regex1 = new RegExp(`${pClean}[\\s,]+(?:la|ve|duoc|hang)?\\s*${term}\\b`, 'i');
+                const regex2 = new RegExp(`\\b${term}\\s+(?:la|ve|thuoc ve)?\\s*${pClean}\\b`, 'i');
+                if (regex1.test(clean) || regex2.test(clean)) {
+                    result.ranks[p.id] = rank;
+                    break;
+                }
+            }
+        }
+    });
+
+    // If 3 ranks determined, assign 4th automatically
+    const assignedRanks = Object.values(result.ranks);
+    const assignedPlayers = Object.keys(result.ranks);
+    if (assignedPlayers.length === 3 && new Set(assignedRanks).size === 3) {
+        const missingRank = [1, 2, 3, 4].find(r => !assignedRanks.includes(r));
+        const missingPlayer = players.find(p => !assignedPlayers.includes(p.id));
+        if (missingRank && missingPlayer) {
+            result.ranks[missingPlayer.id] = missingRank;
+        }
+    }
+
+    // 3. Chặt Heo check
+    if (clean.includes('chat')) {
+        const isRed = clean.includes('do');
+        const pts = isRed ? 2 : 1;
+        const itemKey = isRed ? 'heo_do' : 'heo_den';
+        const itemName = isRed ? '🔴 Heo Đỏ' : '🐷 Heo Đen';
+
+        let chopper = null;
+        let chopped = null;
+        players.forEach(p => {
+            const pClean = removeVietnameseAccents(p.name);
+            const chopIdx = clean.indexOf('chat');
+            const pIdx = clean.indexOf(pClean);
+            if (pIdx !== -1) {
+                if (pIdx < chopIdx && !chopper) {
+                    chopper = p;
+                } else if (pIdx > chopIdx && !chopped) {
+                    chopped = p;
+                }
+            }
+        });
+
+        if (chopper && chopped && chopper.id !== chopped.id) {
+            result.chops.push({
+                id: 'chop_voice_' + Date.now(),
+                chopperId: chopper.id,
+                choppedId: chopped.id,
+                itemKey,
+                itemName,
+                points: pts
+            });
+        }
+    }
+
+    // 4. Cóng check
+    if (clean.includes('cong') || clean.includes('chay bai')) {
+        players.forEach(p => {
+            const pClean = removeVietnameseAccents(p.name);
+            if (clean.includes(`${pClean} cong`) || clean.includes(`${pClean} bi cong`) || clean.includes(`cong ${pClean}`)) {
+                result.congPlayers.push(p.id);
+            }
+        });
+        if (clean.includes('den')) {
+            players.forEach(p => {
+                const pClean = removeVietnameseAccents(p.name);
+                if (clean.includes(`${pClean} den`) || clean.includes(`den ${pClean}`)) {
+                    result.denCongPlayerId = p.id;
+                }
+            });
+        }
+    }
+
+    return result;
+}
 
 // ===== APPLICATION STATE STORE =====
 class Store {
@@ -766,195 +975,236 @@ function renderDashboardView(container, state) {
                 </div>
             </div>
 
-            <!-- Pill Stats Bar (1 row on mobile as required by GEMINI.md) -->
-            <div class="pill-stats-bar">
-                <div class="pill-stat-col">
-                    <span class="stat-label">Đã chơi</span>
-                    <span class="stat-value">${totalRounds} ván</span>
-                </div>
-                <div class="pill-stat-col">
-                    <span class="stat-label">Điểm đích</span>
-                    <span class="stat-value highlight">${state.targetScore}đ</span>
-                </div>
-                <div class="pill-stat-col">
-                    <span class="stat-label">Dẫn đầu</span>
-                    <span class="stat-value" style="color: #FFB300;">
-                        ${leader.name} (${leader.score}đ)
-                    </span>
-                </div>
-            </div>
-
-            <!-- Leaderboard Header -->
-            <div class="leaderboard-title">
-                <h2><span>🏆</span> Bảng xếp hạng 4 cơ thủ</h2>
-                <span class="match-target-badge">Mục tiêu: ${state.targetScore} điểm</span>
-            </div>
-
-            <!-- Leaderboard Cards -->
-            <div class="leaderboard-grid">
-                ${sortedPlayers.map((player, rankIdx) => {
-                    const rankNum = rankIdx + 1;
-                    const progressPercent = Math.min(100, Math.max(0, (player.score / state.targetScore) * 100));
-                    
-                    // Delta in last round
-                    let deltaBadge = '';
-                    if (lastRound && lastRound.deltas) {
-                        const delta = lastRound.deltas[player.id];
-                        if (delta > 0) {
-                            deltaBadge = `<span class="score-delta-badge pos">+${delta}</span>`;
-                        } else if (delta < 0) {
-                            deltaBadge = `<span class="score-delta-badge neg">${delta}</span>`;
-                        } else {
-                            deltaBadge = `<span class="score-delta-badge zero">0</span>`;
-                        }
-                    }
-
-                    return `
-                        <div class="player-card rank-${rankNum}">
-                            <div class="player-card-header">
-                                <div class="player-identity">
-                                    <div class="rank-badge rank-badge-${rankNum}">
-                                        ${rankNum === 1 ? '🥇' : rankNum === 2 ? '🥈' : rankNum === 3 ? '🥉' : '💩'}
-                                    </div>
-                                    <div class="player-details">
-                                        <div class="player-name-text">
-                                            ${player.name}
-                                            ${rankNum === 1 ? '<span class="player-tag">Đang dẫn đầu</span>' : ''}
-                                        </div>
-                                        <div class="player-micro-stats">
-                                            <span class="micro-badge" title="Số lần về nhất">🥇 ${player.wins}</span>
-                                            <span class="micro-badge" title="Số lần chặt heo">🐷 ${player.chopsGiven}</span>
-                                            ${player.congCount > 0 ? `<span class="micro-badge" style="color: var(--accent-red);" title="Số lần cóng">❄️ ${player.congCount}</span>` : ''}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="player-score-area">
-                                    ${deltaBadge}
-                                    <span class="player-score-num">${player.score}</span>
-                                    <span class="player-score-unit">điểm</span>
-                                </div>
-                            </div>
-
-                            <!-- Progress Bar to Target Score -->
-                            <div class="progress-container">
-                                <div class="progress-meta">
-                                    <span>Tiến trình đến đích</span>
-                                    <span>${player.score} / ${state.targetScore} (${Math.round(progressPercent)}%)</span>
-                                </div>
-                                <div class="progress-track">
-                                    <div class="progress-fill ${rankNum === 1 ? 'lead' : ''}" style="width: ${progressPercent}%;"></div>
-                                </div>
-                            </div>
+            <!-- DESKTOP 2-COLUMN LAYOUT -->
+            <div class="dashboard-layout-desktop">
+                <!-- CỘT TRÁI (LEFT COLUMN): Bảng Xếp Hạng & Cụm Nút Hành Động -->
+                <div class="dashboard-col-left">
+                    <!-- Pill Stats Bar (1 row on mobile as required by GEMINI.md) -->
+                    <div class="pill-stats-bar">
+                        <div class="pill-stat-col">
+                            <span class="stat-label">Đã chơi</span>
+                            <span class="stat-value">${totalRounds} ván</span>
                         </div>
-                    `;
-                }).join('')}
-            </div>
-
-            <!-- =============================================================
-                 CỤM NÚT ĐIỀU KHIỂN HÀNH ĐỘNG TO RÕ RÀNG (YÊU CẦU MỚI MR TIẾN)
-                 ============================================================= -->
-            <div class="dashboard-actions-panel">
-                <!-- Nút 1: VÁN MỚI (To nhất, nổi bật nhất, hiệu ứng Gradient cầu vồng) -->
-                <button type="button" class="btn-action-primary" id="btn-open-round-modal">
-                    <span class="btn-action-icon">➕</span>
-                    <div class="btn-action-text-wrap">
-                        <span class="btn-action-main-text">THÊM KẾT QUẢ VÁN ${totalRounds + 1}</span>
-                        <span class="btn-action-sub-text">Nhập thứ hạng • Chặt heo • Cóng • Tới trắng</span>
+                        <div class="pill-stat-col">
+                            <span class="stat-label">Điểm đích</span>
+                            <span class="stat-value highlight">${state.targetScore}đ</span>
+                        </div>
+                        <div class="pill-stat-col">
+                            <span class="stat-label">Dẫn đầu</span>
+                            <span class="stat-value" style="color: #FFB300;">
+                                ${leader.name} (${leader.score}đ)
+                            </span>
+                        </div>
                     </div>
-                </button>
 
-                <!-- Hàng 2 Nút Phụ To Bản: Đặt lại & Hoàn tác -->
-                <div class="action-buttons-row">
-                    <!-- Nút 2: ĐẶT LẠI TRẬN ĐẤU (To, rõ ràng, dễ sử dụng) -->
-                    <button type="button" class="btn-action-secondary btn-reset-match" id="btn-reset-match-big">
-                        <span class="btn-icon-sub">🔄</span>
-                        <div class="btn-text-sub">
-                            <span class="btn-title-sub">ĐẶT LẠI TRẬN</span>
-                            <span class="btn-desc-sub">Chơi lại / Đổi người</span>
-                        </div>
-                    </button>
-
-                    <!-- Nút 3: HOÀN TÁC VÁN GẦN NHẤT (Undo) -->
-                    <button type="button" class="btn-action-secondary btn-undo-match" id="btn-undo-match-big" ${totalRounds === 0 ? 'disabled' : ''}>
-                        <span class="btn-icon-sub">↩️</span>
-                        <div class="btn-text-sub">
-                            <span class="btn-title-sub">HOÀN TÁC VÁN ${totalRounds}</span>
-                            <span class="btn-desc-sub">${totalRounds > 0 ? 'Xóa ván vừa nhập' : 'Chưa có ván'}</span>
-                        </div>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Round History Table / List -->
-            <div class="history-section">
-                <div class="history-header">
-                    <h3><span>📜</span> Lịch sử các ván (${totalRounds})</h3>
-                </div>
-
-                ${totalRounds === 0 ? `
-                    <div class="neu-card empty-history-box">
-                        <p>Chưa có ván bài nào được ghi nhận.</p>
-                        <p style="font-size: 0.78rem; margin-top: 4px; color: var(--text-light);">
-                            Nhấn nút <strong>"THÊM KẾT QUẢ VÁN 1"</strong> ở trên hoặc nói với <strong>Trợ Lý AI 🎙️</strong> để bắt đầu!
-                        </p>
+                    <!-- Leaderboard Header -->
+                    <div class="leaderboard-title">
+                        <h2><span>🏆</span> Bảng xếp hạng 4 cơ thủ</h2>
+                        <span class="match-target-badge">Mục tiêu: ${state.targetScore} điểm</span>
                     </div>
-                ` : `
-                    <div class="history-list">
-                        ${[...state.rounds].reverse().map(round => {
-                            let tagHtml = '';
-                            if (round.isToiTrang) {
-                                tagHtml = '<span class="round-tag toi-trang">🌟 Tới Trắng</span>';
-                            } else {
-                                if (round.chops && round.chops.length > 0) {
-                                    tagHtml += `<span class="round-tag chat-heo">🔥 ${round.chops.length} pha chặt</span>`;
-                                }
-                                if (round.congPlayers && round.congPlayers.length > 0) {
-                                    tagHtml += `<span class="round-tag cong">❄️ ${round.congPlayers.length} người cóng</span>`;
+
+                    <!-- Leaderboard Cards -->
+                    <div class="leaderboard-grid">
+                        ${sortedPlayers.map((player, rankIdx) => {
+                            const rankNum = rankIdx + 1;
+                            const progressPercent = Math.min(100, Math.max(0, (player.score / state.targetScore) * 100));
+                            
+                            // Delta in last round
+                            let deltaBadge = '';
+                            if (lastRound && lastRound.deltas) {
+                                const delta = lastRound.deltas[player.id];
+                                if (delta > 0) {
+                                    deltaBadge = `<span class="score-delta-badge pos">+${delta}</span>`;
+                                } else if (delta < 0) {
+                                    deltaBadge = `<span class="score-delta-badge neg">${delta}</span>`;
+                                } else {
+                                    deltaBadge = `<span class="score-delta-badge zero">0</span>`;
                                 }
                             }
 
                             return `
-                                <div class="history-item">
-                                    <div class="history-item-top">
-                                        <div class="round-number-badge">
-                                            <span>🃏</span> Ván ${round.roundNumber}
-                                        </div>
-                                        <div class="round-tags">
-                                            ${tagHtml}
-                                        </div>
-                                    </div>
-
-                                    <div class="history-scores-grid">
-                                        ${state.players.map(p => {
-                                            const pts = round.deltas ? round.deltas[p.id] : 0;
-                                            const ptsClass = pts > 0 ? 'win' : pts < 0 ? 'loss' : 'neutral';
-                                            const ptsText = pts > 0 ? `+${pts}` : `${pts}`;
-                                            return `
-                                                <div class="history-score-cell">
-                                                    <span class="history-cell-name">${p.name}</span>
-                                                    <span class="history-cell-pts ${ptsClass}">${ptsText}</span>
+                                <div class="player-card rank-${rankNum}">
+                                    <div class="player-card-header">
+                                        <div class="player-identity">
+                                            <div class="rank-badge rank-badge-${rankNum}">
+                                                ${rankNum === 1 ? '🥇' : rankNum === 2 ? '🥈' : rankNum === 3 ? '🥉' : '💩'}
+                                            </div>
+                                            <div class="player-details">
+                                                <div class="player-name-text">
+                                                    ${player.name}
+                                                    ${rankNum === 1 ? '<span class="player-tag">Đang dẫn đầu</span>' : ''}
                                                 </div>
-                                            `;
-                                        }).join('')}
+                                                <div class="player-micro-stats">
+                                                    <span class="micro-badge" title="Số lần về nhất">🥇 ${player.wins}</span>
+                                                    <span class="micro-badge" title="Số lần chặt heo">🐷 ${player.chopsGiven}</span>
+                                                    ${player.congCount > 0 ? `<span class="micro-badge" style="color: var(--accent-red);" title="Số lần cóng">❄️ ${player.congCount}</span>` : ''}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="player-score-area">
+                                            ${deltaBadge}
+                                            <span class="player-score-num">${player.score}</span>
+                                            <span class="player-score-unit">điểm</span>
+                                        </div>
                                     </div>
 
-                                    <!-- Quick notes if any -->
-                                    ${round.breakdowns ? `
-                                        <div class="history-item-notes">
-                                            ${state.players.map(p => {
-                                                const list = round.breakdowns[p.id] || [];
-                                                if (list.length === 0) return '';
-                                                const noteStr = list.map(item => `${item.label} (${item.points > 0 ? '+' : ''}${item.points})`).join(', ');
-                                                return `<div><strong>${p.name}:</strong> ${noteStr}</div>`;
-                                            }).join('')}
+                                    <!-- Progress Bar to Target Score -->
+                                    <div class="progress-container">
+                                        <div class="progress-meta">
+                                            <span>Tiến trình đến đích</span>
+                                            <span>${player.score} / ${state.targetScore} (${Math.round(progressPercent)}%)</span>
                                         </div>
-                                    ` : ''}
+                                        <div class="progress-track">
+                                            <div class="progress-fill ${rankNum === 1 ? 'lead' : ''}" style="width: ${progressPercent}%;"></div>
+                                        </div>
+                                    </div>
                                 </div>
                             `;
                         }).join('')}
                     </div>
-                `}
+
+                    <!-- =============================================================
+                         CỤM NÚT ĐIỀU KHIỂN HÀNH ĐỘNG TO RÕ RÀNG (YÊU CẦU MỚI MR TIẾN)
+                         ============================================================= -->
+                    <div class="dashboard-actions-panel">
+                        <!-- Nút 1: VÁN MỚI (To nhất, nổi bật nhất, hiệu ứng Gradient cầu vồng) -->
+                        <button type="button" class="btn-action-primary" id="btn-open-round-modal">
+                            <span class="btn-action-icon">➕</span>
+                            <div class="btn-action-text-wrap">
+                                <span class="btn-action-main-text">THÊM KẾT QUẢ VÁN ${totalRounds + 1}</span>
+                                <span class="btn-action-sub-text">Nhập thứ hạng • Chặt heo • Cóng • Tới trắng</span>
+                            </div>
+                        </button>
+
+                        <!-- Hàng 2 Nút Phụ To Bản: Đặt lại & Hoàn tác -->
+                        <div class="action-buttons-row">
+                            <!-- Nút 2: ĐẶT LẠI TRẬN ĐẤU (To, rõ ràng, dễ sử dụng) -->
+                            <button type="button" class="btn-action-secondary btn-reset-match" id="btn-reset-match-big">
+                                <span class="btn-icon-sub">🔄</span>
+                                <div class="btn-text-sub">
+                                    <span class="btn-title-sub">ĐẶT LẠI TRẬN</span>
+                                    <span class="btn-desc-sub">Chơi lại / Đổi người</span>
+                                </div>
+                            </button>
+
+                            <!-- Nút 3: HOÀN TÁC VÁN GẦN NHẤT (Undo) -->
+                            <button type="button" class="btn-action-secondary btn-undo-match" id="btn-undo-match-big" ${totalRounds === 0 ? 'disabled' : ''}>
+                                <span class="btn-icon-sub">↩️</span>
+                                <div class="btn-text-sub">
+                                    <span class="btn-title-sub">HOÀN TÁC VÁN ${totalRounds}</span>
+                                    <span class="btn-desc-sub">${totalRounds > 0 ? 'Xóa ván vừa nhập' : 'Chưa có ván'}</span>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Thanh Phím Tắt Nhanh Cho Máy Tính (Desktop Shortcuts Bar) -->
+                    <div class="desktop-shortcuts-bar">
+                        <span>⌨️ Phím tắt:</span>
+                        <span class="kbd-tag"><span class="kbd-key">Space</span> Ván mới</span>
+                        <span class="kbd-tag"><span class="kbd-key">Ctrl+Z</span> Hoàn tác</span>
+                        <span class="kbd-tag"><span class="kbd-key">R</span> Đặt lại</span>
+                        <span class="kbd-tag"><span class="kbd-key">V</span> Giọng nói AI</span>
+                    </div>
+                </div>
+
+                <!-- CỘT PHẢI (RIGHT COLUMN): Trợ Lý AI Voice & Lịch Sử Ván Đấu -->
+                <div class="dashboard-col-right">
+                    <!-- Khối Điều Khiển Giọng Nói AI Trên Desktop -->
+                    <div class="ai-voice-desktop-card">
+                        <div class="ai-voice-desktop-header">
+                            <div class="ai-voice-desktop-title">
+                                <span>🎙️</span>
+                                <span>Trợ Lý Giọng Nói AI</span>
+                            </div>
+                            <button type="button" class="btn-desktop-mic" id="btn-desktop-mic-trigger">
+                                <span>🎙️</span> Nói ngay
+                            </button>
+                        </div>
+                        <p style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.4;">
+                            Bấm <strong>"Nói ngay"</strong> hoặc chọn câu mẫu bên dưới để ghi điểm tự động mà không cần bấm phím:
+                        </p>
+                        <div class="desktop-voice-chips">
+                            <button type="button" class="desktop-chip-btn" data-voice="Tường nhất, Trang nhì, Thư ba, Diễm chót">🎙️ Tường nhất, Trang nhì...</button>
+                            <button type="button" class="desktop-chip-btn" data-voice="Tường tới trắng ván này">🌟 Tường tới trắng</button>
+                            <button type="button" class="desktop-chip-btn" data-voice="Tường chặt heo đỏ của Trang">🔥 Tường chặt heo Trang</button>
+                            <button type="button" class="desktop-chip-btn" data-voice="Diễm bị cóng ván này">❄️ Diễm bị cóng</button>
+                            <button type="button" class="desktop-chip-btn" data-voice="Ai đang dẫn đầu bảng điểm?">📊 Ai đang dẫn đầu?</button>
+                        </div>
+                    </div>
+
+                    <!-- Round History Table / List -->
+                    <div class="history-section">
+                        <div class="history-header">
+                            <h3><span>📜</span> Lịch sử các ván (${totalRounds})</h3>
+                        </div>
+
+                        ${totalRounds === 0 ? `
+                            <div class="neu-card empty-history-box">
+                                <p>Chưa có ván bài nào được ghi nhận.</p>
+                                <p style="font-size: 0.78rem; margin-top: 4px; color: var(--text-light);">
+                                    Nhấn nút <strong>"THÊM KẾT QUẢ VÁN 1"</strong> ở bên trái hoặc nói với <strong>Trợ Lý AI 🎙️</strong> để bắt đầu!
+                                </p>
+                            </div>
+                        ` : `
+                            <div class="history-list">
+                                ${[...state.rounds].reverse().map(round => {
+                                    let tagHtml = '';
+                                    if (round.isToiTrang) {
+                                        tagHtml = '<span class="round-tag toi-trang">🌟 Tới Trắng</span>';
+                                    } else {
+                                        if (round.chops && round.chops.length > 0) {
+                                            tagHtml += `<span class="round-tag chat-heo">🔥 ${round.chops.length} pha chặt</span>`;
+                                        }
+                                        if (round.congPlayers && round.congPlayers.length > 0) {
+                                            tagHtml += `<span class="round-tag cong">❄️ ${round.congPlayers.length} người cóng</span>`;
+                                        }
+                                    }
+
+                                    return `
+                                        <div class="history-item">
+                                            <div class="history-item-top">
+                                                <div class="round-number-badge">
+                                                    <span>🃏</span> Ván ${round.roundNumber}
+                                                </div>
+                                                <div class="round-tags">
+                                                    ${tagHtml}
+                                                </div>
+                                            </div>
+
+                                            <div class="history-scores-grid">
+                                                ${state.players.map(p => {
+                                                    const pts = round.deltas ? round.deltas[p.id] : 0;
+                                                    const ptsClass = pts > 0 ? 'win' : pts < 0 ? 'loss' : 'neutral';
+                                                    const ptsText = pts > 0 ? `+${pts}` : `${pts}`;
+                                                    return `
+                                                        <div class="history-score-cell">
+                                                            <span class="history-cell-name">${p.name}</span>
+                                                            <span class="history-cell-pts ${ptsClass}">${ptsText}</span>
+                                                        </div>
+                                                    `;
+                                                }).join('')}
+                                            </div>
+
+                                            <!-- Quick notes if any -->
+                                            ${round.breakdowns ? `
+                                                <div class="history-item-notes">
+                                                    ${state.players.map(p => {
+                                                        const list = round.breakdowns[p.id] || [];
+                                                        if (list.length === 0) return '';
+                                                        const noteStr = list.map(item => `${item.label} (${item.points > 0 ? '+' : ''}${item.points})`).join(', ');
+                                                        return `<div><strong>${p.name}:</strong> ${noteStr}</div>`;
+                                                    }).join('')}
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        `}
+                    </div>
+                </div>
             </div>
 
             <!-- Mobile Sticky Bottom Action Bar (Cố định ở đáy màn hình điện thoại) -->
@@ -974,6 +1224,7 @@ function renderDashboardView(container, state) {
     if (openRoundBtn) {
         openRoundBtn.addEventListener('click', () => {
             Sound.playTap();
+            hapticFeedback(15);
             openRoundInputModal();
         });
     }
@@ -982,6 +1233,7 @@ function renderDashboardView(container, state) {
     if (stickyAddRoundBtn) {
         stickyAddRoundBtn.addEventListener('click', () => {
             Sound.playTap();
+            hapticFeedback(15);
             openRoundInputModal();
         });
     }
@@ -991,6 +1243,7 @@ function renderDashboardView(container, state) {
     if (resetMatchBigBtn) {
         resetMatchBigBtn.addEventListener('click', () => {
             Sound.playTap();
+            hapticFeedback(15);
             openResetConfirmModal();
         });
     }
@@ -999,6 +1252,7 @@ function renderDashboardView(container, state) {
     if (stickyResetBtn) {
         stickyResetBtn.addEventListener('click', () => {
             Sound.playTap();
+            hapticFeedback(15);
             openResetConfirmModal();
         });
     }
@@ -1008,12 +1262,50 @@ function renderDashboardView(container, state) {
     if (undoMatchBigBtn) {
         undoMatchBigBtn.addEventListener('click', () => {
             Sound.playTap();
+            hapticFeedback(15);
             if (totalRounds > 0 && confirm(`Bạn có chắc muốn hoàn tác (xóa) kết quả Ván ${totalRounds}?`)) {
                 AppStore.undoLastRound();
                 showToast(`Đã hoàn tác kết quả Ván ${totalRounds}!`);
             }
         });
     }
+
+    // Desktop AI Voice Mic Trigger Button
+    const desktopMicBtn = document.getElementById('btn-desktop-mic-trigger');
+    if (desktopMicBtn) {
+        desktopMicBtn.addEventListener('click', () => {
+            Sound.playTap();
+            hapticFeedback(25);
+            if (window.GeminiAssistant) {
+                window.GeminiAssistant.open();
+                setTimeout(() => {
+                    const mic = document.getElementById('geminiMicBtn');
+                    if (mic && !mic.classList.contains('recording')) {
+                        mic.click();
+                    }
+                }, 350);
+            }
+        });
+    }
+
+    // Desktop Voice Quick Chips
+    const desktopChips = container.querySelectorAll('.desktop-chip-btn');
+    desktopChips.forEach(chip => {
+        chip.addEventListener('click', () => {
+            Sound.playTap();
+            hapticFeedback(15);
+            const voiceText = chip.dataset.voice;
+            if (voiceText && window.GeminiAssistant) {
+                window.GeminiAssistant.open();
+                const input = document.getElementById('geminiInput');
+                const sendBtn = document.getElementById('geminiSendBtn');
+                if (input && sendBtn) {
+                    input.value = voiceText;
+                    sendBtn.click();
+                }
+            }
+        });
+    });
 }
 
 // ==========================================================================
@@ -1134,6 +1426,17 @@ function openRoundInputModal() {
                     </div>
 
                     <div class="modal-body">
+                        <!-- NÚT ĐỌC KẾT QUẢ VÁN BẰNG GIỌNG NÓI TRỰC TIẾP TRONG MODAL -->
+                        <div style="margin-bottom: 14px;">
+                            <button type="button" class="modal-voice-input-btn" id="btn-modal-voice-input">
+                                <span class="voice-icon">🎙️</span>
+                                <span id="modal-voice-btn-text">ĐỌC KẾT QUẢ VÁN NÀY (BẰNG GIỌNG NÓI)</span>
+                            </button>
+                            <div class="voice-speech-hint" id="modal-voice-hint">
+                                💡 Nhấn và nói: "Tường nhất, Trang nhì, Thư ba, Diễm chót" hoặc "Tường tới trắng"
+                            </div>
+                        </div>
+
                         <!-- SECTION 1: XẾP HẠNG 4 NGƯỜI (TOGGLE BUTTONS TO RÕ RÀNG) -->
                         <div>
                             <div class="section-title">
@@ -1582,6 +1885,108 @@ function openRoundInputModal() {
                 showToast(`🎉 Đã lưu kết quả Ván ${roundNumber}!`);
             });
         }
+
+        // Voice Recognition Direct in Modal
+        const voiceModalBtn = document.getElementById('btn-modal-voice-input');
+        if (voiceModalBtn) {
+            voiceModalBtn.addEventListener('click', () => {
+                startVoiceRecognitionForModal();
+            });
+        }
+    }
+
+    function startVoiceRecognitionForModal() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            showToast('⚠️ Trình duyệt chưa hỗ trợ Web Speech API. Bạn có thể dùng Trợ Lý AI Gemini!');
+            if (window.GeminiAssistant) window.GeminiAssistant.open();
+            return;
+        }
+
+        const voiceBtn = document.getElementById('btn-modal-voice-input');
+        const btnText = document.getElementById('modal-voice-btn-text');
+        const hintText = document.getElementById('modal-voice-hint');
+
+        try {
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'vi-VN';
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+
+            if (voiceBtn) voiceBtn.classList.add('listening');
+            if (btnText) btnText.textContent = '🔴 ĐANG LẮNG NGHE... HÃY ĐỌC KẾT QUẢ!';
+            if (hintText) hintText.textContent = 'Đang nghe... ví dụ: "Tường nhất Trang nhì Thư ba Diễm chót"';
+            Sound.playVoiceListen();
+            hapticFeedback(25);
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                console.log('🎙️ Modal Voice Recognized:', transcript);
+                
+                const parsed = parseVietnameseRoundSpeech(transcript, state.players);
+                
+                let matchedSomething = false;
+                if (parsed.isToiTrang) {
+                    modalForm.isToiTrang = true;
+                    if (parsed.toiTrangPlayerId) modalForm.toiTrangPlayerId = parsed.toiTrangPlayerId;
+                    matchedSomething = true;
+                } else {
+                    if (Object.keys(parsed.ranks).length > 0) {
+                        modalForm.isToiTrang = false;
+                        Object.entries(parsed.ranks).forEach(([pId, r]) => {
+                            modalForm.ranks[pId] = r;
+                        });
+                        matchedSomething = true;
+                    }
+                    if (parsed.chops.length > 0) {
+                        modalForm.chops = [...modalForm.chops, ...parsed.chops];
+                        matchedSomething = true;
+                    }
+                    if (parsed.congPlayers.length > 0) {
+                        parsed.congPlayers.forEach(cId => {
+                            if (!modalForm.congPlayers.includes(cId)) modalForm.congPlayers.push(cId);
+                        });
+                        matchedSomething = true;
+                    }
+                    if (parsed.denCongPlayerId) {
+                        modalForm.denCongPlayerId = parsed.denCongPlayerId;
+                        matchedSomething = true;
+                    }
+                }
+
+                if (matchedSomething) {
+                    Sound.playVoiceSuccess();
+                    hapticFeedback([20, 40, 20]);
+                    showToast(`🎙️ Đã nhận diện: "${transcript}"`);
+                } else {
+                    showToast(`🎙️ Đã nghe: "${transcript}" (Chưa rõ thứ hạng, vui lòng bấm chọn thủ công)`);
+                }
+
+                updateModalView();
+            };
+
+            recognition.onerror = (event) => {
+                console.warn('Speech recognition error in modal:', event.error);
+                if (voiceBtn) voiceBtn.classList.remove('listening');
+                if (btnText) btnText.textContent = 'ĐỌC KẾT QUẢ VÁN NÀY (BẰNG GIỌNG NÓI)';
+                if (hintText) hintText.textContent = '💡 Nhấn và nói: "Tường nhất, Trang nhì, Thư ba, Diễm chót"';
+                if (event.error !== 'no-speech') {
+                    showToast(`Lỗi giọng nói: ${event.error}`);
+                }
+            };
+
+            recognition.onend = () => {
+                if (voiceBtn) voiceBtn.classList.remove('listening');
+                if (btnText) btnText.textContent = 'ĐỌC KẾT QUẢ VÁN NÀY (BẰNG GIỌNG NÓI)';
+                if (hintText) hintText.textContent = '💡 Nhấn và nói: "Tường nhất, Trang nhì, Thư ba, Diễm chót"';
+            };
+
+            recognition.start();
+        } catch (err) {
+            console.error('Error starting speech recognition in modal:', err);
+            if (voiceBtn) voiceBtn.classList.remove('listening');
+            showToast('Không thể bật micro lúc này.');
+        }
     }
 
     updateModalView();
@@ -1952,6 +2357,72 @@ CÁC HÀNH ĐỘNG HỖ TRỢ (tool calling):
 }
 
 // ==========================================================================
+// ==========================================================================
+// DESKTOP KEYBOARD SHORTCUTS
+// ==========================================================================
+function setupKeyboardShortcuts() {
+    window.addEventListener('keydown', (e) => {
+        // Ignore if typing in input, textarea, or select
+        const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+        if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select') {
+            return;
+        }
+
+        const state = AppStore.getState();
+        const modalsRoot = document.getElementById('modals-root');
+        const hasOpenModal = modalsRoot && modalsRoot.children.length > 0;
+
+        // Escape: Close any open modal
+        if (e.key === 'Escape' && hasOpenModal) {
+            e.preventDefault();
+            modalsRoot.innerHTML = '';
+            Sound.playTap();
+            return;
+        }
+
+        // Only in PLAYING state and when no modal is open:
+        if (state.gameStatus === 'PLAYING' && !hasOpenModal) {
+            // Space: Open Round Input Modal
+            if (e.code === 'Space') {
+                e.preventDefault();
+                Sound.playTap();
+                openRoundInputModal();
+                return;
+            }
+
+            // Ctrl+Z: Undo last round
+            if (e.ctrlKey && (e.key === 'z' || e.key === 'Z')) {
+                e.preventDefault();
+                if (state.rounds.length > 0) {
+                    Sound.playTap();
+                    const roundNum = state.rounds.length;
+                    AppStore.undoLastRound();
+                    showToast(`↩️ Đã hoàn tác kết quả Ván ${roundNum}!`);
+                }
+                return;
+            }
+
+            // R: Open Reset Confirm Modal
+            if ((e.key === 'r' || e.key === 'R') && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                Sound.playTap();
+                openResetConfirmModal();
+                return;
+            }
+
+            // V: Trigger Voice Assistant / Direct Mic
+            if ((e.key === 'v' || e.key === 'V') && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                Sound.playTap();
+                const micBtn = document.getElementById('header-ai-voice-btn');
+                if (micBtn) micBtn.click();
+                return;
+            }
+        }
+    });
+}
+
+// ==========================================================================
 // INITIALIZATION
 // ==========================================================================
 document.addEventListener('DOMContentLoaded', () => {
@@ -1991,6 +2462,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Setup Desktop Keyboard Shortcuts
+    setupKeyboardShortcuts();
+
     // Subscribe to store updates
     AppStore.subscribe(() => {
         renderApp();
@@ -2002,3 +2476,4 @@ document.addEventListener('DOMContentLoaded', () => {
     // Khởi tạo Trợ Lý AI Gemini Độc Lập
     initGeminiVoiceAssistant();
 });
+
