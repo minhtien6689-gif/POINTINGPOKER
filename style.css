@@ -118,6 +118,17 @@ body {
     background: #FFF0E6;
     pointer-events: none;
 }
+
+/* ===== DYNAMIC INTERACTIVE STARFIELD CANVAS ===== */
+.starfield-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: -1;
+    pointer-events: none;
+    will-change: transform;
+}
 .mesh-bg .m {
     position: absolute;
     border-radius: 50%;

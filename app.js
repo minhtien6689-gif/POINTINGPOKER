@@ -1880,6 +1880,9 @@ function openRoundInputModal() {
         if (submitBtn) {
             submitBtn.addEventListener('click', () => {
                 Sound.playTap();
+                if (window.StarfieldInstance) {
+                    window.StarfieldInstance.createBurst(window.innerWidth / 2, window.innerHeight * 0.45, 18);
+                }
                 AppStore.addRound(modalForm);
                 closeModal();
                 showToast(`🎉 Đã lưu kết quả Ván ${roundNumber}!`);
@@ -2001,6 +2004,11 @@ function renderGameOverModal(state) {
 
     // Victory sound and Confetti Cannon
     Sound.playVictory();
+    if (window.StarfieldInstance) {
+        window.StarfieldInstance.createBurst(window.innerWidth * 0.35, window.innerHeight * 0.4, 25);
+        window.StarfieldInstance.createBurst(window.innerWidth * 0.65, window.innerHeight * 0.4, 25);
+        window.StarfieldInstance.spawnMeteor();
+    }
     if (window.confetti) {
         window.confetti({
             particleCount: 120,
