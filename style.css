@@ -1434,6 +1434,24 @@ body {
     box-shadow: 0 4px 12px rgba(107, 114, 128, 0.40);
     transform: scale(1.02);
 }
+/* Rank 4 khi bị Cóng (Xanh băng giá dạ quang) */
+.rank-toggle-btn.active.rank-4-btn.is-cong {
+    background: linear-gradient(135deg, #0284C7 0%, #0369A1 100%);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(2, 132, 199, 0.50);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    animation: pulseIcy 2s infinite ease-in-out;
+}
+@keyframes pulseIcy {
+    0%, 100% { box-shadow: 0 4px 14px rgba(2, 132, 199, 0.45); }
+    50% { box-shadow: 0 4px 20px rgba(56, 189, 248, 0.7); }
+}
+
+.player-rank-row.player-is-cong {
+    border-color: rgba(2, 132, 199, 0.45);
+    background: linear-gradient(135deg, rgba(2, 132, 199, 0.06), rgba(255, 248, 242, 0.95));
+    box-shadow: 0 2px 10px rgba(2, 132, 199, 0.12);
+}
 
 /* ==========================================================================
    ACCORDIONS: TỚI TRẮNG, CHẶT HEO, CÓNG & ĐỀN CÓNG
@@ -1677,9 +1695,15 @@ input:checked + .slider:before {
     transition: all var(--ease);
 }
 .cong-checkbox-label input {
-    accent-color: var(--accent-red);
+    accent-color: #0284C7;
     width: 16px;
     height: 16px;
+}
+.cong-checkbox-label.checked {
+    background: linear-gradient(135deg, rgba(2, 132, 199, 0.14), rgba(56, 189, 248, 0.08));
+    border: 1px solid rgba(2, 132, 199, 0.4);
+    color: #0284C7;
+    box-shadow: 0 2px 8px rgba(2, 132, 199, 0.2);
 }
 
 .den-cong-wrap {

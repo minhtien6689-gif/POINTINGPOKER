@@ -345,7 +345,11 @@ function parseVietnameseRoundSpeech(transcript, players) {
         players.forEach(p => {
             const pClean = removeVietnameseAccents(p.name);
             if (clean.includes(`${pClean} cong`) || clean.includes(`${pClean} bi cong`) || clean.includes(`cong ${pClean}`)) {
-                result.congPlayers.push(p.id);
+                if (!result.congPlayers.includes(p.id)) {
+                    result.congPlayers.push(p.id);
+                }
+                // Tự động gán thứ hạng của người bị cóng là Chót (hạng 4)
+                result.ranks[p.id] = 4;
             }
         });
         if (clean.includes('den')) {
@@ -659,7 +663,9 @@ function calculateRoundPoints(roundData, players) {
             const basePts = rankPoints[rank] || 0;
             deltas[p.id] += basePts;
             const rankNames = { 1: 'Về Nhất', 2: 'Về Nhì', 3: 'Về Ba', 4: 'Về Chót' };
-            breakdowns[p.id].push({ label: `${rankNames[rank]}`, points: basePts });
+            const isCong = (roundData.congPlayers || []).includes(p.id);
+            const label = isCong ? 'Về Chót (Bị Cóng)' : `${rankNames[rank]}`;
+            breakdowns[p.id].push({ label, points: basePts });
             if (rank === 1) {
                 winnerId = p.id;
             }
@@ -1409,10 +1415,28 @@ function openRoundInputModal() {
         if (modalForm.isToiTrang) {
             isValid = !!modalForm.toiTrangPlayerId;
         } else {
-            // Check if all 4 ranks are assigned and unique
             const assignedRanks = Object.values(modalForm.ranks).filter(Boolean);
-            const uniqueRanks = new Set(assignedRanks);
-            isValid = assignedRanks.length === 4 && uniqueRanks.size === 4;
+            if (assignedRanks.length === 4) {
+                if (modalForm.congPlayers.length > 0) {
+                    // Khi có người bị cóng:
+                    // 1. Phải có đúng 1 người Nhất (hạng 1)
+                    const winnerCount = assignedRanks.filter(r => r === 1).length;
+                    // 2. Tất cả người bị cóng phải có thứ hạng là Chót (hạng 4)
+                    const allCongAreChot = modalForm.congPlayers.every(id => modalForm.ranks[id] === 4);
+                    // 3. Những người không bị cóng phải có thứ hạng hợp lệ (không trùng nhau, và không được là hạng 4)
+                    const nonCongPlayers = state.players.filter(p => !modalForm.congPlayers.includes(p.id));
+                    const nonCongRanks = nonCongPlayers.map(p => modalForm.ranks[p.id]).filter(Boolean);
+                    const nonCongUnique = new Set(nonCongRanks);
+                    const nonCongValid = nonCongRanks.length === nonCongPlayers.length &&
+                                         nonCongUnique.size === nonCongPlayers.length &&
+                                         !nonCongRanks.includes(4);
+
+                    isValid = winnerCount === 1 && allCongAreChot && nonCongValid;
+                } else {
+                    const uniqueRanks = new Set(assignedRanks);
+                    isValid = assignedRanks.length === 4 && uniqueRanks.size === 4;
+                }
+            }
         }
 
         return `
@@ -1447,17 +1471,26 @@ function openRoundInputModal() {
                             <div class="rank-selector-list">
                                 ${state.players.map((p, pIdx) => {
                                     const currentRank = modalForm.ranks[p.id];
+                                    const isCong = modalForm.congPlayers.includes(p.id);
+                                    let rankLabel = 'Chưa chọn';
+                                    if (isCong) {
+                                        rankLabel = '❄️ Cóng (Chót)';
+                                    } else if (currentRank) {
+                                        const rankNames = { 1: 'Hạng 1 (Nhất)', 2: 'Hạng 2 (Nhì)', 3: 'Hạng 3 (Ba)', 4: 'Hạng 4 (Chót)' };
+                                        rankLabel = rankNames[currentRank] || `Hạng ${currentRank}`;
+                                    }
                                     return `
-                                        <div class="player-rank-row">
+                                        <div class="player-rank-row ${isCong ? 'player-is-cong' : ''}">
                                             <div class="player-rank-info">
                                                 <div class="rank-player-name">
                                                     <span class="player-avatar-badge player-avatar-${pIdx + 1}" style="width: 26px; height: 26px; font-size: 0.8rem;">
                                                         ${p.avatar || (pIdx + 1)}
                                                     </span>
                                                     <span>${p.name}</span>
+                                                    ${isCong ? '<span class="micro-badge" style="background: rgba(2, 132, 199, 0.15); color: #0284C7; font-size: 0.7rem; font-weight: 700; padding: 2px 6px; border-radius: 6px;">❄️ CÓNG</span>' : ''}
                                                 </div>
-                                                <span style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted);">
-                                                    ${currentRank ? `Hạng ${currentRank}` : 'Chưa chọn'}
+                                                <span style="font-size: 0.78rem; font-weight: 700; color: ${isCong ? '#0284C7' : 'var(--text-muted)'};">
+                                                    ${rankLabel}
                                                 </span>
                                             </div>
 
@@ -1465,30 +1498,30 @@ function openRoundInputModal() {
                                                 <button type="button" 
                                                         class="rank-toggle-btn rank-1-btn ${currentRank === 1 ? 'active' : ''}" 
                                                         data-player="${p.id}" data-rank="1"
-                                                        ${modalForm.isToiTrang ? 'disabled' : ''}>
+                                                        ${modalForm.isToiTrang || isCong ? 'disabled' : ''}>
                                                     <span>🥇 Nhất</span>
                                                     <span class="rank-pts">+3đ</span>
                                                 </button>
                                                 <button type="button" 
                                                         class="rank-toggle-btn rank-2-btn ${currentRank === 2 ? 'active' : ''}" 
                                                         data-player="${p.id}" data-rank="2"
-                                                        ${modalForm.isToiTrang ? 'disabled' : ''}>
+                                                        ${modalForm.isToiTrang || isCong ? 'disabled' : ''}>
                                                     <span>🥈 Nhì</span>
                                                     <span class="rank-pts">+2đ</span>
                                                 </button>
                                                 <button type="button" 
                                                         class="rank-toggle-btn rank-3-btn ${currentRank === 3 ? 'active' : ''}" 
                                                         data-player="${p.id}" data-rank="3"
-                                                        ${modalForm.isToiTrang ? 'disabled' : ''}>
+                                                        ${modalForm.isToiTrang || isCong ? 'disabled' : ''}>
                                                     <span>🥉 Ba</span>
                                                     <span class="rank-pts">+1đ</span>
                                                 </button>
                                                 <button type="button" 
-                                                        class="rank-toggle-btn rank-4-btn ${currentRank === 4 ? 'active' : ''}" 
+                                                        class="rank-toggle-btn rank-4-btn ${currentRank === 4 ? 'active' : ''} ${isCong ? 'is-cong' : ''}" 
                                                         data-player="${p.id}" data-rank="4"
                                                         ${modalForm.isToiTrang ? 'disabled' : ''}>
-                                                    <span>💩 Chót</span>
-                                                    <span class="rank-pts">0đ</span>
+                                                    <span>${isCong ? '❄️ Chót' : '💩 Chót'}</span>
+                                                    <span class="rank-pts">${isCong ? '0đ (-6đ)' : '0đ'}</span>
                                                 </button>
                                             </div>
                                         </div>
@@ -1618,12 +1651,13 @@ function openRoundInputModal() {
                                     <div class="cong-players-grid">
                                         ${state.players.map(p => {
                                             const isWinner = modalForm.ranks[p.id] === 1;
+                                            const isChecked = modalForm.congPlayers.includes(p.id);
                                             return `
-                                                <label class="cong-checkbox-label" ${isWinner ? 'style="opacity: 0.4; pointer-events: none;"' : ''}>
+                                                <label class="cong-checkbox-label ${isChecked ? 'checked' : ''}" ${isWinner ? 'style="opacity: 0.4; pointer-events: none;"' : ''}>
                                                     <input type="checkbox" class="cong-player-cb" data-player="${p.id}" 
-                                                           ${modalForm.congPlayers.includes(p.id) ? 'checked' : ''}
+                                                           ${isChecked ? 'checked' : ''}
                                                            ${isWinner ? 'disabled' : ''}>
-                                                    <span>${p.name} ${isWinner ? '(Nhất)' : ''}</span>
+                                                    <span>${p.name} ${isWinner ? '(Nhất)' : isChecked ? '(Chót -6đ)' : ''}</span>
                                                 </label>
                                             `;
                                         }).join('')}
@@ -1718,6 +1752,11 @@ function openRoundInputModal() {
                 const rank = parseInt(btn.dataset.rank, 10);
                 Sound.playRank(rank);
 
+                // Nếu người này đang bị cóng:
+                if (modalForm.congPlayers.includes(playerId)) {
+                    if (rank === 4) return; // Đang bị cóng thì luôn giữ thứ hạng Chót
+                }
+
                 // If this player already has this rank, toggle off
                 if (modalForm.ranks[playerId] === rank) {
                     modalForm.ranks[playerId] = null;
@@ -1725,6 +1764,10 @@ function openRoundInputModal() {
                     // Check if another player currently holds this rank, and free it
                     Object.keys(modalForm.ranks).forEach(otherId => {
                         if (modalForm.ranks[otherId] === rank) {
+                            // Nếu rank là 4 và otherId đang bị cóng, KHÔNG giải phóng otherId (vì nhiều người cóng cùng là Chót)
+                            if (rank === 4 && modalForm.congPlayers.includes(otherId)) {
+                                return;
+                            }
                             modalForm.ranks[otherId] = null;
                         }
                     });
@@ -1733,6 +1776,11 @@ function openRoundInputModal() {
 
                 // If this player became rank 1, remove them from cóng list if they were checked
                 if (modalForm.ranks[playerId] === 1) {
+                    modalForm.congPlayers = modalForm.congPlayers.filter(id => id !== playerId);
+                }
+
+                // If this player was cóng but selected rank 1, 2, 3, remove from cóng
+                if (rank !== 4 && modalForm.congPlayers.includes(playerId)) {
                     modalForm.congPlayers = modalForm.congPlayers.filter(id => id !== playerId);
                 }
 
@@ -1859,8 +1907,52 @@ function openRoundInputModal() {
                     if (!modalForm.congPlayers.includes(pId)) {
                         modalForm.congPlayers.push(pId);
                     }
+                    // YÊU CẦU CỐT LÕI: Trường hợp những người nào được check là bị cóng thì chọn thứ hạng ván đó của những người đó là CHÓT (hạng 4)
+                    modalForm.ranks[pId] = 4;
+
+                    // Nếu có người chơi khác (KHÔNG BỊ CÓNG) trước đó đang giữ hạng 4, giải phóng hạng 4 của người đó
+                    Object.keys(modalForm.ranks).forEach(otherId => {
+                        if (otherId !== pId && modalForm.ranks[otherId] === 4 && !modalForm.congPlayers.includes(otherId)) {
+                            modalForm.ranks[otherId] = null;
+                        }
+                    });
+
+                    // Tự động suy luận thứ hạng thông minh hỗ trợ người dùng:
+                    // TH 3 người bị cóng: Người duy nhất còn lại tự động là Nhất (1)
+                    if (modalForm.congPlayers.length === 3) {
+                        const winner = state.players.find(p => !modalForm.congPlayers.includes(p.id));
+                        if (winner) modalForm.ranks[winner.id] = 1;
+                    } 
+                    // TH 2 người bị cóng: Nếu đã có 1 người Nhất, người còn lại chưa có hạng tự động là Nhì (2)
+                    else if (modalForm.congPlayers.length === 2) {
+                        const nonCong = state.players.filter(p => !modalForm.congPlayers.includes(p.id));
+                        const winner = nonCong.find(p => modalForm.ranks[p.id] === 1);
+                        const otherNonCong = nonCong.find(p => modalForm.ranks[p.id] !== 1);
+                        if (winner && otherNonCong && !modalForm.ranks[otherNonCong.id]) {
+                            modalForm.ranks[otherNonCong.id] = 2;
+                        }
+                    }
+                    // TH 1 người bị cóng: Nếu 2 người khác đã có hạng 1 và 2, người còn lại tự động là Ba (3)
+                    else if (modalForm.congPlayers.length === 1) {
+                        const nonCong = state.players.filter(p => !modalForm.congPlayers.includes(p.id));
+                        const has1 = nonCong.some(p => modalForm.ranks[p.id] === 1);
+                        const has2 = nonCong.some(p => modalForm.ranks[p.id] === 2);
+                        const unassigned = nonCong.find(p => !modalForm.ranks[p.id]);
+                        if (has1 && has2 && unassigned) {
+                            modalForm.ranks[unassigned.id] = 3;
+                        }
+                    }
                 } else {
+                    // Khi uncheck (bỏ đánh dấu cóng):
                     modalForm.congPlayers = modalForm.congPlayers.filter(id => id !== pId);
+                    // Hủy thứ hạng Chót của người này để người dùng có thể chọn lại thứ hạng thật
+                    if (modalForm.ranks[pId] === 4) {
+                        modalForm.ranks[pId] = null;
+                    }
+                    // Nếu không còn ai cóng, reset người đền cóng
+                    if (modalForm.congPlayers.length === 0) {
+                        modalForm.denCongPlayerId = '';
+                    }
                 }
                 updateModalView();
             });
@@ -1948,6 +2040,8 @@ function openRoundInputModal() {
                     if (parsed.congPlayers.length > 0) {
                         parsed.congPlayers.forEach(cId => {
                             if (!modalForm.congPlayers.includes(cId)) modalForm.congPlayers.push(cId);
+                            // Tự động gán thứ hạng người bị cóng là Chót (hạng 4)
+                            modalForm.ranks[cId] = 4;
                         });
                         matchedSomething = true;
                     }
@@ -2201,8 +2295,21 @@ function handleAiAction(action) {
 
             const rankMap = {};
             const usedRanks = new Set();
+            const rawCong = action.congPlayers || action.params?.congPlayers || action.cong || action.params?.cong || [];
+            const congList = Array.isArray(rawCong) ? rawCong : [rawCong].filter(Boolean);
+            const resolvedCongIds = [];
+
+            // Bất kỳ ai bị cóng đều tự động chọn thứ hạng là Chót (hạng 4)
+            congList.forEach(cItem => {
+                const cId = typeof cItem === 'string' ? (findPlayerIdByName(cItem) || cItem) : cItem?.id;
+                if (cId && !resolvedCongIds.includes(cId)) {
+                    resolvedCongIds.push(cId);
+                    rankMap[cId] = 4;
+                }
+            });
 
             state.players.forEach(p => {
+                if (rankMap[p.id]) return; // Đã là cóng (Chót)
                 const key = Object.keys(rawRanks).find(k => {
                     const cleanK = k.toLowerCase().trim();
                     const cleanP = p.name.toLowerCase().trim();
@@ -2217,8 +2324,8 @@ function handleAiAction(action) {
                 }
             });
 
-            // Tự động suy luận người chơi còn lại nếu đã biết 3 người
-            if (Object.keys(rankMap).length === 3) {
+            // Tự động suy luận người chơi còn lại nếu đã biết 3 người (khi không có ai cóng)
+            if (Object.keys(rankMap).length === 3 && resolvedCongIds.length === 0) {
                 const missingRank = [1, 2, 3, 4].find(r => !usedRanks.has(r));
                 const missingPlayer = state.players.find(p => !rankMap[p.id]);
                 if (missingRank && missingPlayer) {
@@ -2227,15 +2334,26 @@ function handleAiAction(action) {
                 }
             }
 
-            // Kiểm tra đủ 4 thứ hạng khác nhau
+            // Kiểm tra tính hợp lệ của ván bài
             const assigned = Object.values(rankMap).filter(Boolean);
-            if (assigned.length === 4 && new Set(assigned).size === 4) {
+            let isValidRound = false;
+            if (assigned.length === 4) {
+                if (resolvedCongIds.length > 0) {
+                    const winnerCount = assigned.filter(r => r === 1).length;
+                    const allCongChot = resolvedCongIds.every(cId => rankMap[cId] === 4);
+                    isValidRound = winnerCount === 1 && allCongChot;
+                } else {
+                    isValidRound = new Set(assigned).size === 4;
+                }
+            }
+
+            if (isValidRound) {
                 closeModal();
                 AppStore.addRound({
                     isToiTrang: false,
                     ranks: rankMap,
                     chops: action.chops || action.params?.chops || [],
-                    congPlayers: action.congPlayers || action.params?.congPlayers || [],
+                    congPlayers: resolvedCongIds,
                     denCongPlayerId: action.denCongPlayerId || action.params?.denCongPlayerId || ''
                 });
                 Sound.playVictory();
@@ -2281,8 +2399,28 @@ function handleAiAction(action) {
         }
 
         case 'RECORD_CONG': {
+            const rawTarget = action.cong || action.params?.cong || action.player || action.params?.player || action.players || action.params?.players;
+            const targetNames = Array.isArray(rawTarget) ? rawTarget : [rawTarget].filter(Boolean);
+            const foundIds = [];
+            targetNames.forEach(name => {
+                const pId = findPlayerIdByName(name);
+                if (pId && !foundIds.includes(pId)) foundIds.push(pId);
+            });
+
             Sound.playCong();
-            return `❄️ Ghi nhận phạt cóng trong ván!`;
+            openRoundInputModal();
+            setTimeout(() => {
+                foundIds.forEach(id => {
+                    const cb = document.querySelector(`.cong-player-cb[data-player="${id}"]`);
+                    if (cb && !cb.checked) {
+                        cb.checked = true;
+                        cb.dispatchEvent(new Event('change'));
+                    }
+                });
+            }, 80);
+
+            const displayNames = targetNames.length > 0 ? targetNames.join(', ') : 'người chơi';
+            return `❄️ Ghi nhận ${displayNames} bị CÓNG và đã tự động chọn thứ hạng là CHÓT!`;
         }
 
         case 'RESET_GAME': {
