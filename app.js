@@ -2,6 +2,7 @@
  * ==========================================================================
  * POINTINGPOKER — Mr Tiến Web App Tính Điểm Tiến Lên Miền Nam Thông Minh
  * Senior Fullstack Architecture — Single Page Application (SPA)
+ * Tích Hợp Trợ Lý AI Gemini © 2026 Mr Tiến • Điều Khiển Bằng Giọng Nói 🎙️
  * ==========================================================================
  */
 
@@ -20,11 +21,12 @@ const CHOP_ITEMS = [
     { key: 'bon_doi_thong', name: '⚡ 4 Đôi Thông', points: 5, desc: '+5đ / -5đ' }
 ];
 
+// Thứ tự 4 người chơi mặc định: Tường, Trang, Thư, Diễm (Theo đúng yêu cầu của Mr Tiến)
 const DEFAULT_PLAYERS = [
-    { id: 'p1', name: 'Tiến', color: '#FF7043', avatar: '👑' },
-    { id: 'p2', name: 'Minh', color: '#FF4D8D', avatar: '⚡' },
-    { id: 'p3', name: 'Tuấn', color: '#26C6A0', avatar: '🎯' },
-    { id: 'p4', name: 'Hùng', color: '#7C3AED', avatar: '🔥' }
+    { id: 'p1', name: 'Tường', color: '#FF7043', avatar: '👑' },
+    { id: 'p2', name: 'Trang', color: '#FF4D8D', avatar: '⚡' },
+    { id: 'p3', name: 'Thư', color: '#26C6A0', avatar: '🎯' },
+    { id: 'p4', name: 'Diễm', color: '#7C3AED', avatar: '🔥' }
 ];
 
 // ===== WEB AUDIO SYNTHESIZER (NO EXTERNAL FILES NEEDED) =====
@@ -163,6 +165,18 @@ class Store {
             if (saved) {
                 const parsed = JSON.parse(saved);
                 if (parsed && parsed.players && parsed.players.length === 4) {
+                    // Tự động di chuyển tên người chơi cũ sang Tường, Trang, Thư, Diễm nếu chưa chơi hoặc mang tên cũ
+                    const oldNames = ['Tiến', 'Minh', 'Tuấn', 'Hùng', 'minh', 'an', 'Người 1', 'Người 2'];
+                    const hasOldDefault = parsed.players.some(p => oldNames.includes(p.name));
+                    if (hasOldDefault && (!parsed.rounds || parsed.rounds.length === 0)) {
+                        parsed.players = DEFAULT_PLAYERS.map(p => ({
+                            id: p.id,
+                            name: p.name,
+                            color: p.color,
+                            avatar: p.avatar,
+                            score: 0, wins: 0, seconds: 0, thirds: 0, fourths: 0, chopsGiven: 0, chopsTaken: 0, congCount: 0
+                        }));
+                    }
                     return parsed;
                 }
             }
@@ -223,7 +237,7 @@ class Store {
         this.state.targetScore = parseInt(targetScore, 10) || 50;
         this.state.players = this.state.players.map((p, idx) => ({
             ...p,
-            name: (names[idx] && names[idx].trim()) || p.name || `Người ${idx + 1}`,
+            name: (names[idx] && names[idx].trim()) || DEFAULT_PLAYERS[idx].name,
             score: 0,
             wins: 0,
             seconds: 0,
@@ -341,8 +355,11 @@ class Store {
     resetGame() {
         this.state.gameStatus = 'SETUP';
         this.state.rounds = [];
-        this.state.players = this.state.players.map(p => ({
-            ...p,
+        this.state.players = DEFAULT_PLAYERS.map(p => ({
+            id: p.id,
+            name: p.name,
+            color: p.color,
+            avatar: p.avatar,
             score: 0,
             wins: 0,
             seconds: 0,
@@ -597,7 +614,7 @@ function renderSetupView(container, state) {
                     </h1>
                     <span class="line-3">BẢNG GHI & TÍNH ĐIỂM THÔNG MINH BẬC NHẤT</span>
                 </div>
-                <p class="hero-subtitle">Tự động tính điểm thứ hạng, chặt heo, cóng, đền cóng & bảng xếp hạng thời gian thực</p>
+                <p class="hero-subtitle">Tự động tính thứ hạng, chặt heo, cóng, đền cóng & hỗ trợ ra lệnh bằng Giọng Nói AI</p>
             </div>
 
             ${resumeHtml}
@@ -608,14 +625,19 @@ function renderSetupView(container, state) {
                     <span>🎴</span> Thiết lập 4 người chơi
                 </div>
 
+                <!-- Nút nạp nhanh 4 người chơi mặc định: Tường - Trang - Thư - Diễm -->
+                <button type="button" class="quick-fill-names-chip" id="btn-quick-fill-default-names">
+                    <span>🔄</span> Mặc định: <strong>Tường • Trang • Thư • Diễm</strong>
+                </button>
+
                 <div class="setup-group">
-                    <label class="setup-label">Nhập tên 4 người chơi trên chiếu bài:</label>
+                    <label class="setup-label">Tên 4 cơ thủ trên chiếu bài:</label>
                     <div class="players-grid">
                         ${state.players.map((p, idx) => `
                             <div class="player-input-card">
                                 <div class="player-avatar-badge player-avatar-${idx + 1}">${p.avatar || (idx + 1)}</div>
                                 <input type="text" class="player-name-input" id="player-input-${idx}" 
-                                       value="${p.name}" placeholder="Người ${idx + 1}" maxlength="15" autocomplete="off">
+                                       value="${p.name}" placeholder="${DEFAULT_PLAYERS[idx].name}" maxlength="15" autocomplete="off">
                             </div>
                         `).join('')}
                     </div>
@@ -649,6 +671,18 @@ function renderSetupView(container, state) {
     const startBtn = document.getElementById('btn-start-game');
     const customTargetInput = document.getElementById('custom-target-input');
     const chipBtns = container.querySelectorAll('.chip-btn');
+    const quickFillBtn = document.getElementById('btn-quick-fill-default-names');
+
+    if (quickFillBtn) {
+        quickFillBtn.addEventListener('click', () => {
+            Sound.playTap();
+            DEFAULT_PLAYERS.forEach((dp, idx) => {
+                const inp = document.getElementById(`player-input-${idx}`);
+                if (inp) inp.value = dp.name;
+            });
+            showToast('✅ Đã nạp 4 tên mặc định: Tường, Trang, Thư, Diễm!');
+        });
+    }
 
     chipBtns.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -678,14 +712,14 @@ function renderSetupView(container, state) {
         startBtn.addEventListener('click', () => {
             Sound.playTap();
             const names = [
-                document.getElementById('player-input-0')?.value || 'Người 1',
-                document.getElementById('player-input-1')?.value || 'Người 2',
-                document.getElementById('player-input-2')?.value || 'Người 3',
-                document.getElementById('player-input-3')?.value || 'Người 4'
+                document.getElementById('player-input-0')?.value || DEFAULT_PLAYERS[0].name,
+                document.getElementById('player-input-1')?.value || DEFAULT_PLAYERS[1].name,
+                document.getElementById('player-input-2')?.value || DEFAULT_PLAYERS[2].name,
+                document.getElementById('player-input-3')?.value || DEFAULT_PLAYERS[3].name
             ];
             const targetScore = parseInt(customTargetInput?.value, 10) || 50;
             AppStore.startGame(names, targetScore);
-            showToast('🔥 Trận đấu bắt đầu! Chúc các cơ thủ may mắn!');
+            showToast('🔥 Trận đấu bắt đầu! Chúc 4 cơ thủ may mắn!');
         });
     }
 
@@ -703,9 +737,7 @@ function renderSetupView(container, state) {
     if (discardBtn) {
         discardBtn.addEventListener('click', () => {
             Sound.playTap();
-            if (confirm('Bạn có chắc muốn xóa lịch sử ván cũ để tạo trận hoàn toàn mới?')) {
-                AppStore.resetGame();
-            }
+            openResetConfirmModal();
         });
     }
 }
@@ -754,7 +786,7 @@ function renderDashboardView(container, state) {
 
             <!-- Leaderboard Header -->
             <div class="leaderboard-title">
-                <h2><span>🏆</span> Bảng xếp hạng hiện tại</h2>
+                <h2><span>🏆</span> Bảng xếp hạng 4 cơ thủ</h2>
                 <span class="match-target-badge">Mục tiêu: ${state.targetScore} điểm</span>
             </div>
 
@@ -819,29 +851,52 @@ function renderDashboardView(container, state) {
                 }).join('')}
             </div>
 
-            <!-- Primary Action: Thêm kết quả ván mới (To, rõ ràng) -->
-            <div class="dashboard-actions">
-                <button type="button" class="btn-add-round" id="btn-open-round-modal">
-                    <span>➕</span> THÊM KẾT QUẢ VÁN ${totalRounds + 1}
+            <!-- =============================================================
+                 CỤM NÚT ĐIỀU KHIỂN HÀNH ĐỘNG TO RÕ RÀNG (YÊU CẦU MỚI MR TIẾN)
+                 ============================================================= -->
+            <div class="dashboard-actions-panel">
+                <!-- Nút 1: VÁN MỚI (To nhất, nổi bật nhất, hiệu ứng Gradient cầu vồng) -->
+                <button type="button" class="btn-action-primary" id="btn-open-round-modal">
+                    <span class="btn-action-icon">➕</span>
+                    <div class="btn-action-text-wrap">
+                        <span class="btn-action-main-text">THÊM KẾT QUẢ VÁN ${totalRounds + 1}</span>
+                        <span class="btn-action-sub-text">Nhập thứ hạng • Chặt heo • Cóng • Tới trắng</span>
+                    </div>
                 </button>
+
+                <!-- Hàng 2 Nút Phụ To Bản: Đặt lại & Hoàn tác -->
+                <div class="action-buttons-row">
+                    <!-- Nút 2: ĐẶT LẠI TRẬN ĐẤU (To, rõ ràng, dễ sử dụng) -->
+                    <button type="button" class="btn-action-secondary btn-reset-match" id="btn-reset-match-big">
+                        <span class="btn-icon-sub">🔄</span>
+                        <div class="btn-text-sub">
+                            <span class="btn-title-sub">ĐẶT LẠI TRẬN</span>
+                            <span class="btn-desc-sub">Chơi lại / Đổi người</span>
+                        </div>
+                    </button>
+
+                    <!-- Nút 3: HOÀN TÁC VÁN GẦN NHẤT (Undo) -->
+                    <button type="button" class="btn-action-secondary btn-undo-match" id="btn-undo-match-big" ${totalRounds === 0 ? 'disabled' : ''}>
+                        <span class="btn-icon-sub">↩️</span>
+                        <div class="btn-text-sub">
+                            <span class="btn-title-sub">HOÀN TÁC VÁN ${totalRounds}</span>
+                            <span class="btn-desc-sub">${totalRounds > 0 ? 'Xóa ván vừa nhập' : 'Chưa có ván'}</span>
+                        </div>
+                    </button>
+                </div>
             </div>
 
             <!-- Round History Table / List -->
             <div class="history-section">
                 <div class="history-header">
                     <h3><span>📜</span> Lịch sử các ván (${totalRounds})</h3>
-                    ${totalRounds > 0 ? `
-                        <button type="button" class="undo-btn" id="btn-undo-round" title="Hoàn tác ván gần nhất">
-                            <span>↩️</span> Hoàn tác ván ${totalRounds}
-                        </button>
-                    ` : ''}
                 </div>
 
                 ${totalRounds === 0 ? `
                     <div class="neu-card empty-history-box">
                         <p>Chưa có ván bài nào được ghi nhận.</p>
                         <p style="font-size: 0.78rem; margin-top: 4px; color: var(--text-light);">
-                            Nhấn nút "Thêm kết quả ván 1" ở trên để ghi điểm ván đầu tiên!
+                            Nhấn nút <strong>"THÊM KẾT QUẢ VÁN 1"</strong> ở trên hoặc nói với <strong>Trợ Lý AI 🎙️</strong> để bắt đầu!
                         </p>
                     </div>
                 ` : `
@@ -901,6 +956,16 @@ function renderDashboardView(container, state) {
                     </div>
                 `}
             </div>
+
+            <!-- Mobile Sticky Bottom Action Bar (Cố định ở đáy màn hình điện thoại) -->
+            <div class="mobile-sticky-action-bar">
+                <button type="button" class="mobile-sticky-btn mobile-sticky-primary" id="mobile-sticky-add-round">
+                    <span>➕ VÁN ${totalRounds + 1}</span>
+                </button>
+                <button type="button" class="mobile-sticky-btn mobile-sticky-secondary" id="mobile-sticky-reset">
+                    <span>🔄 ĐẶT LẠI</span>
+                </button>
+            </div>
         </div>
     `;
 
@@ -913,16 +978,110 @@ function renderDashboardView(container, state) {
         });
     }
 
-    const undoBtn = document.getElementById('btn-undo-round');
-    if (undoBtn) {
-        undoBtn.addEventListener('click', () => {
+    const stickyAddRoundBtn = document.getElementById('mobile-sticky-add-round');
+    if (stickyAddRoundBtn) {
+        stickyAddRoundBtn.addEventListener('click', () => {
             Sound.playTap();
-            if (confirm(`Bạn có chắc muốn hoàn tác (xóa) kết quả Ván ${totalRounds}?`)) {
+            openRoundInputModal();
+        });
+    }
+
+    // Reset Match Button (To, rõ ràng)
+    const resetMatchBigBtn = document.getElementById('btn-reset-match-big');
+    if (resetMatchBigBtn) {
+        resetMatchBigBtn.addEventListener('click', () => {
+            Sound.playTap();
+            openResetConfirmModal();
+        });
+    }
+
+    const stickyResetBtn = document.getElementById('mobile-sticky-reset');
+    if (stickyResetBtn) {
+        stickyResetBtn.addEventListener('click', () => {
+            Sound.playTap();
+            openResetConfirmModal();
+        });
+    }
+
+    // Undo Round Button (To, rõ ràng)
+    const undoMatchBigBtn = document.getElementById('btn-undo-match-big');
+    if (undoMatchBigBtn) {
+        undoMatchBigBtn.addEventListener('click', () => {
+            Sound.playTap();
+            if (totalRounds > 0 && confirm(`Bạn có chắc muốn hoàn tác (xóa) kết quả Ván ${totalRounds}?`)) {
                 AppStore.undoLastRound();
                 showToast(`Đã hoàn tác kết quả Ván ${totalRounds}!`);
             }
         });
     }
+}
+
+// ==========================================================================
+// MODAL XÁC NHẬN ĐẶT LẠI VÁN ĐẤU (THIẾT KẾ RÕ RÀNG & AN TOÀN)
+// ==========================================================================
+function openResetConfirmModal() {
+    const modalsRoot = document.getElementById('modals-root');
+    if (!modalsRoot) return;
+
+    const state = AppStore.getState();
+    const roundCount = state.rounds.length;
+
+    modalsRoot.innerHTML = `
+        <div class="modal-backdrop" id="reset-confirm-backdrop">
+            <div class="modal-sheet reset-confirm-sheet" style="max-width: 460px;">
+                <div class="reset-confirm-icon">🔄</div>
+                <h3 class="reset-confirm-title">Đặt lại ván bài?</h3>
+                <p class="reset-confirm-desc">
+                    Trận đấu hiện đã chơi <strong>${roundCount} ván</strong>. Vui lòng chọn cách bạn muốn đặt lại:
+                </p>
+
+                <div class="reset-options-list">
+                    <!-- Lựa chọn 1: Giữ nguyên 4 người Tường, Trang, Thư, Diễm -->
+                    <div class="reset-option-card" id="opt-restart-same-players">
+                        <span class="reset-option-icon">⚡</span>
+                        <div class="reset-option-info">
+                            <span class="reset-option-title">Chơi ván mới (Cùng 4 người)</span>
+                            <span class="reset-option-subtitle">Giữ nguyên: ${state.players.map(p => p.name).join(', ')} • Reset điểm về 0</span>
+                        </div>
+                    </div>
+
+                    <!-- Lựa chọn 2: Thiết lập lại từ đầu -->
+                    <div class="reset-option-card danger" id="opt-reset-to-setup">
+                        <span class="reset-option-icon">⚙️</span>
+                        <div class="reset-option-info">
+                            <span class="reset-option-title">Thiết lập lại từ đầu</span>
+                            <span class="reset-option-subtitle">Quay về màn hình Khởi tạo (đổi tên người chơi, đổi điểm đích)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="button" class="btn-cancel-round" id="btn-cancel-reset" style="width: 100%;">
+                    Hủy bỏ
+                </button>
+            </div>
+        </div>
+    `;
+
+    const closeModal = () => { modalsRoot.innerHTML = ''; };
+
+    document.getElementById('btn-cancel-reset')?.addEventListener('click', closeModal);
+    document.getElementById('reset-confirm-backdrop')?.addEventListener('click', e => {
+        if (e.target.id === 'reset-confirm-backdrop') closeModal();
+    });
+
+    document.getElementById('opt-restart-same-players')?.addEventListener('click', () => {
+        Sound.playTap();
+        closeModal();
+        AppStore.restartWithSamePlayers();
+        showToast('🔄 Đã làm mới điểm số cho trận mới!');
+    });
+
+    document.getElementById('opt-reset-to-setup')?.addEventListener('click', () => {
+        Sound.playTap();
+        closeModal();
+        AppStore.resetGame();
+        showToast('⚙️ Đã chuyển về màn hình thiết lập trận đấu!');
+    });
 }
 
 // ==========================================================================
@@ -963,12 +1122,6 @@ function openRoundInputModal() {
             const uniqueRanks = new Set(assignedRanks);
             isValid = assignedRanks.length === 4 && uniqueRanks.size === 4;
         }
-
-        // Available ranks map: which rank is taken by which player
-        const rankTakenBy = {};
-        Object.entries(modalForm.ranks).forEach(([pId, r]) => {
-            if (r) rankTakenBy[r] = pId;
-        });
 
         return `
             <div class="modal-backdrop" id="round-modal-backdrop">
@@ -1355,7 +1508,6 @@ function openRoundInputModal() {
                 const idx = parseInt(select.dataset.chopIndex, 10);
                 if (modalForm.chops[idx]) {
                     modalForm.chops[idx].chopperId = e.target.value;
-                    // If chopper == chopped, auto switch chopped to another
                     if (modalForm.chops[idx].chopperId === modalForm.chops[idx].choppedId) {
                         const other = state.players.find(p => p.id !== e.target.value);
                         if (other) modalForm.chops[idx].choppedId = other.id;
@@ -1510,7 +1662,7 @@ function renderGameOverModal(state) {
                 <!-- Actions -->
                 <div class="gameover-actions">
                     <button type="button" class="btn-primary-action" id="btn-restart-same" style="margin-top: 0;">
-                        <span>🔄</span> CHƠI VÁN MỚI (CÙNG NGƯỜI CHƠI)
+                        <span>🔄</span> CHƠI VÁN MỚI (CÙNG 4 NGƯỜI)
                     </button>
                     <button type="button" class="chip-btn" id="btn-raise-target" style="padding: 12px; font-size: 0.9rem;">
                         <span>⚡</span> Chơi tiếp (Tăng điểm đích thêm +20đ)
@@ -1565,7 +1717,7 @@ function copyMatchSummary() {
     let text = `♠️♥️ TIẾN LÊN MIỀN NAM - POINTING POKER PRO ♣️♦️\n`;
     text += `📅 Ngày: ${dateStr} | Số ván: ${state.rounds.length} ván | Đích: ${state.targetScore}đ\n`;
     text += `----------------------------------------\n`;
-    text += `🏆 BẢNG XẾP HẠNG CHUNG CUỘC:\n`;
+    text += `🏆 BẢNG XẾP HẠNG HIỆN TẠI:\n`;
 
     sorted.forEach((p, idx) => {
         const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : '💩';
@@ -1583,6 +1735,219 @@ function copyMatchSummary() {
         });
     } else {
         prompt('Sao chép tóm tắt bảng điểm:', text);
+    }
+}
+
+// ==========================================================================
+// TÍCH HỢP TRỢ LÝ AI GEMINI & ĐIỀU KHIỂN BẰNG GIỌNG NÓI 🎙️ (MR TIẾN)
+// ==========================================================================
+function findPlayerIdByName(nameStr) {
+    if (!nameStr) return null;
+    const clean = nameStr.toLowerCase().trim();
+    const state = AppStore.getState();
+    const p = state.players.find(player => {
+        const pName = player.name.toLowerCase();
+        return pName === clean || clean.includes(pName) || pName.includes(clean);
+    });
+    return p ? p.id : null;
+}
+
+function handleAiAction(action) {
+    console.log('⚡ Pointing Poker Action Received from Gemini AI:', action);
+    if (!action || !action.type) return null;
+
+    const state = AppStore.getState();
+
+    switch (action.type) {
+        case 'OPEN_ROUND_MODAL':
+            openRoundInputModal();
+            return 'Đã mở cửa sổ nhập kết quả ván mới!';
+
+        case 'RECORD_ROUND': {
+            // action.ranks: { "Tường": 1, "Trang": 2, "Thư": 3, "Diễm": 4 }
+            if (!action.ranks) return null;
+            const rankMap = {};
+            state.players.forEach(p => {
+                // Find matching key
+                const key = Object.keys(action.ranks).find(k => {
+                    const cleanK = k.toLowerCase().trim();
+                    const cleanP = p.name.toLowerCase().trim();
+                    return cleanK === cleanP || cleanK.includes(cleanP) || cleanP.includes(cleanK);
+                });
+                if (key) {
+                    rankMap[p.id] = parseInt(action.ranks[key], 10);
+                }
+            });
+
+            // Validate all 4 ranks
+            const assigned = Object.values(rankMap).filter(Boolean);
+            if (assigned.length === 4 && new Set(assigned).size === 4) {
+                AppStore.addRound({
+                    isToiTrang: false,
+                    ranks: rankMap,
+                    chops: action.chops || [],
+                    congPlayers: action.congPlayers || [],
+                    denCongPlayerId: action.denCongPlayerId || ''
+                });
+                Sound.playVictory();
+                const rankSummary = state.players.map(p => `${p.name} (Hạng ${rankMap[p.id]})`).join(', ');
+                return `Đã ghi nhận Ván ${state.rounds.length}: ${rankSummary}!`;
+            } else {
+                openRoundInputModal();
+                return 'Đã mở bảng nhập điểm, vui lòng kiểm tra lại thứ hạng 4 người!';
+            }
+        }
+
+        case 'TOI_TRANG': {
+            const pId = findPlayerIdByName(action.player);
+            if (pId) {
+                AppStore.addRound({
+                    isToiTrang: true,
+                    toiTrangPlayerId: pId
+                });
+                Sound.playVictory();
+                const p = state.players.find(pl => pl.id === pId);
+                return `🌟 Chúc mừng ${p.name} TỚI TRẮNG (+9 điểm)!`;
+            }
+            return 'Không tìm thấy người chơi tới trắng được yêu cầu.';
+        }
+
+        case 'RECORD_CHOP': {
+            const chopperId = findPlayerIdByName(action.chopper);
+            const choppedId = findPlayerIdByName(action.chopped);
+            const itemKey = action.item || 'heo_do';
+            const item = CHOP_ITEMS.find(it => it.key === itemKey) || CHOP_ITEMS[1];
+
+            if (chopperId && choppedId && chopperId !== choppedId) {
+                Sound.playChop();
+                const chopper = state.players.find(p => p.id === chopperId);
+                const chopped = state.players.find(p => p.id === choppedId);
+                return `🔥 Ghi nhận pha chặt: ${chopper.name} chặt ${item.name} của ${chopped.name} (${item.desc})!`;
+            }
+            return null;
+        }
+
+        case 'RECORD_CONG': {
+            Sound.playCong();
+            return `❄️ Ghi nhận phạt cóng trong ván!`;
+        }
+
+        case 'RESET_GAME': {
+            openResetConfirmModal();
+            return 'Đã mở bảng xác nhận đặt lại trận đấu!';
+        }
+
+        case 'UNDO_ROUND': {
+            if (state.rounds.length > 0) {
+                const roundNum = state.rounds.length;
+                AppStore.undoLastRound();
+                return `↩️ Đã hoàn tác kết quả Ván ${roundNum}!`;
+            }
+            return 'Hiện chưa có ván nào để hoàn tác.';
+        }
+
+        case 'READ_LEADERBOARD': {
+            const sorted = [...state.players].sort((a, b) => b.score - a.score);
+            let speech = `Bảng điểm hiện tại sau ${state.rounds.length} ván: `;
+            sorted.forEach((p, idx) => {
+                speech += `Hạng ${idx + 1}: ${p.name} ${p.score} điểm. `;
+            });
+            if (window.GeminiAssistant) {
+                window.GeminiAssistant.speak(speech);
+            }
+            return speech;
+        }
+
+        case 'SHARE_SUMMARY': {
+            copyMatchSummary();
+            return '📋 Đã sao chép bảng điểm vào bộ nhớ tạm!';
+        }
+
+        default:
+            return null;
+    }
+}
+
+function initGeminiVoiceAssistant() {
+    if (!window.GeminiAssistant) {
+        console.warn('GeminiAssistant library not loaded.');
+        return;
+    }
+
+    const state = AppStore.getState();
+    const playerNamesStr = state.players.map(p => p.name).join(', ');
+
+    window.GeminiAssistant.init({
+        title: 'Trợ Lý AI Ghi Điểm',
+        brandName: '© 2026 Mr Tiến',
+        welcomeMessage: `👋 Xin chào các cơ thủ! Tôi là **Trợ Lý AI Gemini © 2026 Mr Tiến**.\nTôi có thể giúp bạn **ghi điểm và điều khiển ván bài bằng giọng nói 🎙️** hoàn toàn tự động!\n\n💡 **Thử nói hoặc gõ:**\n- *"Ván mới"*\n- *"Tường nhất, Trang nhì, Thư ba, Diễm chót"*\n- *"Tường tới trắng"*\n- *"Tường chặt heo đỏ của Trang"*\n- *"Diễm bị cóng"*\n- *"Ai đang dẫn đầu?"*\n- *"Đặt lại trận đấu"*\n\nBấm nút **Micro 🎙️** bên dưới để ra lệnh bằng giọng nói ngay nhé!`,
+        systemInstruction: `Bạn là Trợ Lý AI Ghi Điểm Tiến Lên Miền Nam chuyên nghiệp của ứng dụng POINTINGPOKER © 2026 Mr Tiến.
+Danh sách 4 người chơi trên chiếu bài hiện tại là: ${playerNamesStr} (Mặc định: Tường, Trang, Thư, Diễm).
+
+QUY TẮC TÍNH ĐIỂM TIẾN LÊN MIỀN NAM:
+- Nhất: +3 điểm | Nhì: +2 điểm | Ba: +1 điểm | Chót: 0 điểm.
+- Tới trắng: +9 điểm cho người tới trắng, 3 người thua được 0 điểm.
+- Chặt heo đỏ: +2 điểm cho người chặt, -2 điểm cho người bị chặt.
+- Chặt heo đen: +1 điểm cho người chặt, -1 điểm cho người bị chặt.
+- Cóng: Phạt -6 điểm mỗi người cóng, người Nhất nhận toàn bộ số điểm phạt này. Nếu có người Đền Cóng, người đền gánh thay toàn bộ điểm phạt.
+
+NHIỆM VỤ CỦA BẠN:
+1. Lắng nghe câu nói tiếng Việt bằng giọng nói hoặc tin nhắn của người chơi để điều khiển web tự động.
+2. Trả lời vui tươi, hào hứng, phong cách sòng bài vui vẻ, có emoji phong phú.
+3. Luôn đính kèm MỘT KHỐI JSON DUY NHẤT ở CUỐI câu trả lời với cú pháp:
+\`\`\`action
+{"type": "TÊN_HÀNH_ĐỘNG", ...tham_số}
+\`\`\`
+
+CÁC HÀNH ĐỘNG HỖ TRỢ (tool calling):
+- Mở cửa sổ nhập điểm ván mới:
+  {"type": "OPEN_ROUND_MODAL"}
+- Nhập kết quả ván bài (tự động cộng điểm):
+  {"type": "RECORD_ROUND", "ranks": {"Tường": 1, "Trang": 2, "Thư": 3, "Diễm": 4}}
+  (Giá trị thứ hạng: 1 là Nhất, 2 là Nhì, 3 là Ba, 4 là Chót)
+- Ghi nhận Tới Trắng:
+  {"type": "TOI_TRANG", "player": "Tường"}
+- Ghi nhận Chặt Heo:
+  {"type": "RECORD_CHOP", "chopper": "Tường", "chopped": "Trang", "item": "heo_do" | "heo_den"}
+- Ghi nhận Cóng:
+  {"type": "RECORD_CONG", "cong": ["Diễm"], "den": null}
+- Đặt lại trận đấu / Chơi ván mới:
+  {"type": "RESET_GAME"}
+- Hoàn tác ván vừa rồi:
+  {"type": "UNDO_ROUND"}
+- Đọc bảng xếp hạng / điểm số hiện tại:
+  {"type": "READ_LEADERBOARD"}
+- Sao chép bảng điểm:
+  {"type": "SHARE_SUMMARY"}
+`,
+        quickChips: [
+            { label: '🎙️ Tường nhất, Trang nhì...', prompt: 'Tường nhất, Trang nhì, Thư ba, Diễm chót' },
+            { label: '🌟 Tường tới trắng', prompt: 'Tường tới trắng ván này' },
+            { label: '🔥 Tường chặt heo đỏ Trang', prompt: 'Tường chặt heo đỏ của Trang' },
+            { label: '❄️ Diễm bị cóng', prompt: 'Diễm bị cóng ván này' },
+            { label: '📊 Ai đang dẫn đầu?', prompt: 'Ai đang dẫn đầu bảng điểm?' },
+            { label: '➕ Nhập ván mới', prompt: 'Mở cửa sổ nhập ván mới' },
+            { label: '🔄 Đặt lại trận đấu', prompt: 'Đặt lại ván bài' }
+        ],
+        onAction: function(action) {
+            return handleAiAction(action);
+        }
+    });
+
+    // Quick Voice Mic button on Header
+    const headerVoiceBtn = document.getElementById('header-ai-voice-btn');
+    if (headerVoiceBtn) {
+        headerVoiceBtn.addEventListener('click', () => {
+            Sound.playTap();
+            window.GeminiAssistant.open();
+            // Automatically trigger speech listening for instant voice command!
+            setTimeout(() => {
+                const micBtn = document.getElementById('geminiMicBtn');
+                if (micBtn && !micBtn.classList.contains('recording')) {
+                    micBtn.click();
+                }
+            }, 350);
+        });
     }
 }
 
@@ -1613,10 +1978,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (resetBtn) {
         resetBtn.addEventListener('click', () => {
             Sound.playTap();
-            if (confirm('Bạn có muốn đặt lại ván đấu và quay về màn hình khởi tạo?')) {
-                AppStore.resetGame();
-                showToast('Đã đặt lại trận đấu!');
-            }
+            openResetConfirmModal();
         });
     }
 
@@ -1636,4 +1998,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initial render
     renderApp();
+
+    // Khởi tạo Trợ Lý AI Gemini Độc Lập
+    initGeminiVoiceAssistant();
 });

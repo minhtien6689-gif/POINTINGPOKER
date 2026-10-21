@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>POINTINGPOKER | Ứng Dụng Tính Điểm Tiến Lên Miền Nam Thông Minh - Mr Tiến</title>
-    <meta name="description" content="Ứng dụng tính điểm và ghi kết quả bài Tiến lên miền Nam thông minh, tự động tính chặt heo, cóng, đền cóng, tới trắng và bảng xếp hạng trực quan.">
-    <meta name="keywords" content="tính điểm tiến lên miền nam, pointing poker, ghi điểm đánh bài, chặt heo, cóng, đền cóng, mr tiến">
+    <meta name="description" content="Ứng dụng tính điểm và ghi kết quả bài Tiến lên miền Nam thông minh, tự động tính chặt heo, cóng, đền cóng, tới trắng và điều khiển bằng giọng nói Trợ Lý AI Gemini.">
+    <meta name="keywords" content="tính điểm tiến lên miền nam, pointing poker, ghi điểm đánh bài, chặt heo, cóng, đền cóng, trợ lý ai gemini, giọng nói, mr tiến">
     
     <!-- Google Fonts: Outfit, Plus Jakarta Sans, Orbitron, Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -17,6 +17,9 @@
 
     <!-- Custom Style Sheet -->
     <link rel="stylesheet" href="style.css">
+
+    <!-- Trợ Lý AI Gemini - Điều Khiển Bằng Giọng Nói (Mr Tiến) -->
+    <link rel="stylesheet" href="gemini-assistant.css">
 </head>
 <body>
 
@@ -102,18 +105,22 @@
                 <span class="brand-icon">♠️♥️</span>
                 <div class="brand-text">
                     <span class="brand-name">POINTING POKER</span>
-                    <span class="brand-badge">PRO v2.6</span>
+                    <span class="brand-badge">PRO v2.6 • AI VOICE</span>
                 </div>
             </div>
             
             <div class="header-actions">
-                <button class="icon-btn" id="sound-toggle-btn" title="Bật/Tắt âm thanh" aria-label="Bật/Tắt âm thanh">
+                <button class="icon-btn ai-voice-trigger-btn" id="header-ai-voice-btn" title="Bật Trợ Lý AI Gemini / Điều khiển giọng nói (Ctrl+J)" aria-label="Trợ lý AI giọng nói">
+                    <span class="ai-sparkle-spin">✨</span>
+                    <span style="font-size: 0.9rem;">🎙️</span>
+                </button>
+                <button class="icon-btn" id="sound-toggle-btn" title="Bật/Tắt âm thanh hiệu ứng" aria-label="Bật/Tắt âm thanh">
                     <span id="sound-icon">🔊</span>
                 </button>
                 <button class="icon-btn" id="share-btn" title="Sao chép bảng điểm" aria-label="Chia sẻ bảng điểm">
                     <span>📤</span>
                 </button>
-                <button class="icon-btn" id="reset-game-btn" title="Chơi mới / Đặt lại" aria-label="Đặt lại">
+                <button class="icon-btn" id="reset-game-btn" title="Đặt lại ván bài" aria-label="Đặt lại">
                     <span>🔄</span>
                 </button>
             </div>
@@ -139,6 +146,10 @@
 
     <!-- ===== TOAST NOTIFICATION CONTAINER ===== -->
     <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+    <!-- ===== SCRIPTS ===== -->
+    <!-- Trợ Lý AI Gemini Độc Lập © 2026 Mr Tiến (Hỗ Trợ Giọng Nói 🎙️ & Lệnh Tự Động) -->
+    <script src="gemini-assistant.js"></script>
 
     <!-- JavaScript Application Logic -->
     <script src="app.js"></script>

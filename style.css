@@ -1910,3 +1910,315 @@ input:checked + .slider:before {
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
+
+/* ==========================================================================
+   AI VOICE BUTTON & PROMINENT ACTION CONTROLS (QUY CHUẨN MỚI MR TIẾN)
+   ========================================================================== */
+.ai-voice-trigger-btn {
+    background: linear-gradient(135deg, rgba(255, 112, 67, 0.15), rgba(255, 77, 141, 0.15));
+    border: 1.5px solid rgba(255, 112, 67, 0.5);
+    color: var(--primary);
+    position: relative;
+    overflow: hidden;
+}
+.ai-voice-trigger-btn:hover {
+    border-color: var(--primary);
+    box-shadow: 0 0 12px rgba(255, 112, 67, 0.45);
+    transform: translateY(-2px) scale(1.05);
+}
+.ai-sparkle-spin {
+    display: inline-block;
+    animation: sparkleSpin 3s linear infinite;
+    font-size: 0.8rem;
+    margin-right: -2px;
+}
+
+/* Enhanced Dashboard Action Panel */
+.dashboard-actions-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 22px 0 28px;
+}
+
+/* Primary Huge Action Button: VÁN MỚI */
+.btn-action-primary {
+    width: 100%;
+    padding: 16px 24px;
+    border-radius: var(--radius-lg);
+    border: none;
+    background: linear-gradient(110deg, #FF7043 0%, #FF4D8D 45%, #7C3AED 100%);
+    background-size: 200% auto;
+    color: #fff;
+    cursor: pointer;
+    box-shadow:
+        0 10px 26px rgba(255, 112, 67, 0.45),
+        -3px -3px 8px rgba(255, 255, 255, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    transition: all var(--ease);
+    animation: rainbowFlow 8s linear infinite;
+    position: relative;
+    overflow: hidden;
+}
+.btn-action-primary:hover {
+    transform: translateY(-2.5px) scale(1.01);
+    box-shadow: 0 14px 32px rgba(255, 112, 67, 0.55);
+}
+.btn-action-primary:active {
+    transform: translateY(1px);
+    box-shadow: inset 2px 2px 6px rgba(0, 0, 0, 0.3);
+}
+.btn-action-icon {
+    font-size: 1.8rem;
+    line-height: 1;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+.btn-action-text-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+}
+.btn-action-main-text {
+    font-family: var(--font-heading);
+    font-size: 1.15rem;
+    font-weight: 900;
+    letter-spacing: 0.03em;
+    line-height: 1.2;
+}
+.btn-action-sub-text {
+    font-size: 0.72rem;
+    font-weight: 600;
+    opacity: 0.9;
+    letter-spacing: 0.01em;
+}
+
+/* Secondary Actions Grid: 2 Large Buttons Side-by-Side */
+.action-buttons-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+@media (max-width: 480px) {
+    .action-buttons-row {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+}
+
+.btn-action-secondary {
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    border: 1.5px solid rgba(255, 255, 255, 0.9);
+    box-shadow: var(--neu-raised);
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: all var(--ease);
+    text-align: left;
+}
+.btn-action-secondary:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: var(--neu-raised-lg);
+    border-color: rgba(255, 112, 67, 0.4);
+}
+.btn-action-secondary:active:not(:disabled) {
+    transform: translateY(1px);
+    box-shadow: var(--neu-inset);
+}
+.btn-action-secondary:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    box-shadow: var(--neu-flat);
+}
+
+.btn-action-secondary .btn-icon-sub {
+    font-size: 1.4rem;
+    flex-shrink: 0;
+}
+.btn-action-secondary .btn-text-sub {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.btn-action-secondary .btn-title-sub {
+    font-family: var(--font-heading);
+    font-size: 0.88rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.btn-action-secondary .btn-desc-sub {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.btn-reset-match:hover .btn-title-sub {
+    color: var(--primary);
+}
+.btn-undo-match:hover .btn-title-sub {
+    color: var(--accent-red);
+}
+
+/* Quick Fill Chip on Setup */
+.quick-fill-names-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: var(--radius-pill);
+    background: linear-gradient(135deg, rgba(255, 112, 67, 0.12), rgba(255, 77, 141, 0.12));
+    border: 1px solid rgba(255, 112, 67, 0.35);
+    color: var(--primary);
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: var(--neu-flat);
+    transition: all var(--ease);
+    margin-bottom: 12px;
+}
+.quick-fill-names-chip:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--neu-raised-sm);
+    background: linear-gradient(135deg, rgba(255, 112, 67, 0.22), rgba(255, 77, 141, 0.22));
+}
+
+/* Mobile Sticky Action Bar (Luôn trong tầm tay khi ngồi chơi bài) */
+.mobile-sticky-action-bar {
+    display: none;
+}
+@media (max-width: 640px) {
+    .mobile-sticky-action-bar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 1005;
+        background: rgba(255, 240, 230, 0.94);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+        border-top: 1px solid rgba(255, 255, 255, 0.9);
+        box-shadow: 0 -6px 24px rgba(224, 184, 168, 0.55);
+        padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
+        display: flex;
+        gap: 8px;
+    }
+
+    body {
+        padding-bottom: 78px;
+    }
+
+    .mobile-sticky-btn {
+        border-radius: var(--radius-pill);
+        border: none;
+        font-family: var(--font-heading);
+        font-size: 0.92rem;
+        font-weight: 800;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        transition: all var(--ease);
+        padding: 12px 10px;
+    }
+    .mobile-sticky-primary {
+        flex: 1.8;
+        background: linear-gradient(135deg, #FF7043, #FF4D8D);
+        color: #fff;
+        box-shadow: 0 4px 14px rgba(255, 112, 67, 0.4);
+    }
+    .mobile-sticky-secondary {
+        flex: 1;
+        background: var(--bg-card);
+        color: var(--text-secondary);
+        box-shadow: var(--neu-flat);
+        border: 1px solid rgba(255, 255, 255, 0.8);
+    }
+
+    /* Đẩy nút FAB Trợ lý AI lên cao một chút trên mobile để không đè vào sticky bar */
+    .gemini-fab-container {
+        bottom: 74px !important;
+        right: 14px !important;
+    }
+}
+
+/* Reset Confirmation Modal */
+.reset-confirm-sheet {
+    text-align: center;
+    padding: 24px 20px;
+}
+.reset-confirm-icon {
+    font-size: 3rem;
+    margin-bottom: 8px;
+}
+.reset-confirm-title {
+    font-family: var(--font-heading);
+    font-size: 1.3rem;
+    font-weight: 900;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+}
+.reset-confirm-desc {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    line-height: 1.45;
+    margin-bottom: 20px;
+}
+.reset-options-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+.reset-option-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    border: 1.5px solid rgba(255, 255, 255, 0.9);
+    box-shadow: var(--neu-raised-sm);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    text-align: left;
+    transition: all var(--ease);
+}
+.reset-option-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--neu-raised);
+    border-color: var(--primary);
+}
+.reset-option-card.danger:hover {
+    border-color: var(--accent-red);
+}
+.reset-option-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+.reset-option-info {
+    display: flex;
+    flex-direction: column;
+}
+.reset-option-title {
+    font-family: var(--font-heading);
+    font-size: 0.92rem;
+    font-weight: 800;
+    color: var(--text-primary);
+}
+.reset-option-subtitle {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
