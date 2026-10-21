@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>POINTINGPOKER | Ứng Dụng Tính Điểm Tiến Lên Miền Nam Thông Minh - Mr Tiến</title>
+    <meta name="description" content="Ứng dụng tính điểm và ghi kết quả bài Tiến lên miền Nam thông minh, tự động tính chặt heo, cóng, đền cóng, tới trắng và bảng xếp hạng trực quan.">
+    <meta name="keywords" content="tính điểm tiến lên miền nam, pointing poker, ghi điểm đánh bài, chặt heo, cóng, đền cóng, mr tiến">
+    
+    <!-- Google Fonts: Outfit, Plus Jakarta Sans, Orbitron, Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800;900&family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@600;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- Canvas Confetti for Game Over Celebration -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+
+    <!-- Custom Style Sheet -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- ===== ANIMATED MESH GRADIENT BACKGROUND ===== -->
+    <div class="mesh-bg" aria-hidden="true">
+        <div class="m m1"></div>
+        <div class="m m2"></div>
+        <div class="m m3"></div>
+        <div class="m m4"></div>
+        <div class="m m5"></div>
+        <div class="m m6"></div>
+    </div>
+
+    <!-- ===== TOP LED ADVERTISING BAR (BẮT BUỘC THEO QUY CHUẨN MR TIẾN) ===== -->
+    <div class="top-led-bar" id="top-led-bar">
+        <div class="led-board-container" aria-label="Bảng LED quảng cáo © 2026 Mr Tiến">
+            <div class="led-board-frame">
+                <span class="led-screw led-screw--tl"></span>
+                <span class="led-screw led-screw--tr"></span>
+                <span class="led-screw led-screw--bl"></span>
+                <span class="led-screw led-screw--br"></span>
+
+                <div class="led-indicators led-indicators--left">
+                    <span class="led-bulb led-bulb--red"></span>
+                    <span class="led-bulb led-bulb--yellow"></span>
+                    <span class="led-bulb led-bulb--green"></span>
+                </div>
+
+                <div class="led-screen">
+                    <div class="led-screen-mesh" aria-hidden="true"></div>
+                    <div class="led-screen-glare" aria-hidden="true"></div>
+                    <div class="led-track-wrapper">
+                        <div class="led-track">
+                            <span class="led-text-item">
+                                <span class="led-c1">©</span>
+                                <span class="led-space">&nbsp;</span>
+                                <span class="led-c2">2</span>
+                                <span class="led-c3">0</span>
+                                <span class="led-c4">2</span>
+                                <span class="led-c5">6</span>
+                                <span class="led-space">&nbsp;</span>
+                                <span class="led-c6">M</span>
+                                <span class="led-c7">r</span>
+                                <span class="led-space">&nbsp;</span>
+                                <span class="led-c8">T</span>
+                                <span class="led-c9">i</span>
+                                <span class="led-c10">ế</span>
+                                <span class="led-c11">n</span>
+                            </span>
+                            <span class="led-text-item">
+                                <span class="led-c1">©</span>
+                                <span class="led-space">&nbsp;</span>
+                                <span class="led-c2">2</span>
+                                <span class="led-c3">0</span>
+                                <span class="led-c4">2</span>
+                                <span class="led-c5">6</span>
+                                <span class="led-space">&nbsp;</span>
+                                <span class="led-c6">M</span>
+                                <span class="led-c7">r</span>
+                                <span class="led-space">&nbsp;</span>
+                                <span class="led-c8">T</span>
+                                <span class="led-c9">i</span>
+                                <span class="led-c10">ế</span>
+                                <span class="led-c11">n</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="led-indicators led-indicators--right">
+                    <span class="led-bulb led-bulb--green"></span>
+                    <span class="led-bulb led-bulb--yellow"></span>
+                    <span class="led-bulb led-bulb--red"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== TOP HEADER NAVIGATION ===== -->
+    <header class="app-header" id="app-header">
+        <div class="header-container">
+            <div class="brand-logo" id="logo-btn" title="Pointing Poker Tiến Lên Miền Nam">
+                <span class="brand-icon">♠️♥️</span>
+                <div class="brand-text">
+                    <span class="brand-name">POINTING POKER</span>
+                    <span class="brand-badge">PRO v2.6</span>
+                </div>
+            </div>
+            
+            <div class="header-actions">
+                <button class="icon-btn" id="sound-toggle-btn" title="Bật/Tắt âm thanh" aria-label="Bật/Tắt âm thanh">
+                    <span id="sound-icon">🔊</span>
+                </button>
+                <button class="icon-btn" id="share-btn" title="Sao chép bảng điểm" aria-label="Chia sẻ bảng điểm">
+                    <span>📤</span>
+                </button>
+                <button class="icon-btn" id="reset-game-btn" title="Chơi mới / Đặt lại" aria-label="Đặt lại">
+                    <span>🔄</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- ===== MAIN CONTENT CONTAINER ===== -->
+    <main class="main-content" id="main-content">
+        <!-- Dynamic Views rendered by app.js:
+             - View 1: Setup Screen (Màn hình Khởi tạo)
+             - View 2: Dashboard Screen (Bảng điểm & Xếp hạng & Lịch sử)
+        -->
+        <div id="app-root">
+            <div class="loading-state">
+                <div class="spinner"></div>
+                <p>Đang tải Pointing Poker...</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- ===== MODALS CONTAINER ===== -->
+    <div id="modals-root"></div>
+
+    <!-- ===== TOAST NOTIFICATION CONTAINER ===== -->
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+    <!-- JavaScript Application Logic -->
+    <script src="app.js"></script>
+</body>
+</html>
