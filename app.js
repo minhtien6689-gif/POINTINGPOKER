@@ -2170,6 +2170,21 @@ function handleAiAction(action) {
     if (!action || !action.type) return null;
 
     const state = AppStore.getState();
+    const modalsRoot = document.getElementById('modals-root');
+    const closeModal = () => { if (modalsRoot) modalsRoot.innerHTML = ''; };
+
+    // Hỗ trợ hàm chuẩn hóa thứ hạng dạng số hoặc chữ
+    function parseRankValue(val) {
+        if (typeof val === 'number') return val;
+        if (!val) return 0;
+        const s = String(val).toLowerCase().trim();
+        if (s === '1' || s.includes('nhất') || s.includes('nhat') || s === 'one') return 1;
+        if (s === '2' || s.includes('nhì') || s.includes('nhi') || s === 'hai' || s === 'two') return 2;
+        if (s === '3' || s.includes('ba') || s === 'three') return 3;
+        if (s === '4' || s.includes('tư') || s.includes('tu') || s.includes('chót') || s.includes('chot') || s.includes('bét') || s.includes('bet') || s === 'four') return 4;
+        const n = parseInt(s, 10);
+        return isNaN(n) ? 0 : n;
+    }
 
     switch (action.type) {
         case 'OPEN_ROUND_MODAL':
@@ -2177,30 +2192,51 @@ function handleAiAction(action) {
             return 'Đã mở cửa sổ nhập kết quả ván mới!';
 
         case 'RECORD_ROUND': {
-            // action.ranks: { "Tường": 1, "Trang": 2, "Thư": 3, "Diễm": 4 }
-            if (!action.ranks) return null;
+            // Hỗ trợ cả action.ranks và action.params.ranks
+            const rawRanks = action.ranks || action.params?.ranks;
+            if (!rawRanks || typeof rawRanks !== 'object') {
+                openRoundInputModal();
+                return 'Đã mở bảng nhập điểm để bạn kiểm tra lại!';
+            }
+
             const rankMap = {};
+            const usedRanks = new Set();
+
             state.players.forEach(p => {
-                // Find matching key
-                const key = Object.keys(action.ranks).find(k => {
+                const key = Object.keys(rawRanks).find(k => {
                     const cleanK = k.toLowerCase().trim();
                     const cleanP = p.name.toLowerCase().trim();
                     return cleanK === cleanP || cleanK.includes(cleanP) || cleanP.includes(cleanK);
                 });
                 if (key) {
-                    rankMap[p.id] = parseInt(action.ranks[key], 10);
+                    const r = parseRankValue(rawRanks[key]);
+                    if (r >= 1 && r <= 4) {
+                        rankMap[p.id] = r;
+                        usedRanks.add(r);
+                    }
                 }
             });
 
-            // Validate all 4 ranks
+            // Tự động suy luận người chơi còn lại nếu đã biết 3 người
+            if (Object.keys(rankMap).length === 3) {
+                const missingRank = [1, 2, 3, 4].find(r => !usedRanks.has(r));
+                const missingPlayer = state.players.find(p => !rankMap[p.id]);
+                if (missingRank && missingPlayer) {
+                    rankMap[missingPlayer.id] = missingRank;
+                    usedRanks.add(missingRank);
+                }
+            }
+
+            // Kiểm tra đủ 4 thứ hạng khác nhau
             const assigned = Object.values(rankMap).filter(Boolean);
             if (assigned.length === 4 && new Set(assigned).size === 4) {
+                closeModal();
                 AppStore.addRound({
                     isToiTrang: false,
                     ranks: rankMap,
-                    chops: action.chops || [],
-                    congPlayers: action.congPlayers || [],
-                    denCongPlayerId: action.denCongPlayerId || ''
+                    chops: action.chops || action.params?.chops || [],
+                    congPlayers: action.congPlayers || action.params?.congPlayers || [],
+                    denCongPlayerId: action.denCongPlayerId || action.params?.denCongPlayerId || ''
                 });
                 Sound.playVictory();
                 const rankSummary = state.players.map(p => `${p.name} (Hạng ${rankMap[p.id]})`).join(', ');
@@ -2212,8 +2248,10 @@ function handleAiAction(action) {
         }
 
         case 'TOI_TRANG': {
-            const pId = findPlayerIdByName(action.player);
+            const targetName = action.player || action.params?.player;
+            const pId = findPlayerIdByName(targetName);
             if (pId) {
+                closeModal();
                 AppStore.addRound({
                     isToiTrang: true,
                     toiTrangPlayerId: pId
@@ -2226,9 +2264,11 @@ function handleAiAction(action) {
         }
 
         case 'RECORD_CHOP': {
-            const chopperId = findPlayerIdByName(action.chopper);
-            const choppedId = findPlayerIdByName(action.chopped);
-            const itemKey = action.item || 'heo_do';
+            const chopperName = action.chopper || action.params?.chopper;
+            const choppedName = action.chopped || action.params?.chopped;
+            const chopperId = findPlayerIdByName(chopperName);
+            const choppedId = findPlayerIdByName(choppedName);
+            const itemKey = action.item || action.params?.item || 'heo_do';
             const item = CHOP_ITEMS.find(it => it.key === itemKey) || CHOP_ITEMS[1];
 
             if (chopperId && choppedId && chopperId !== choppedId) {
@@ -2246,14 +2286,18 @@ function handleAiAction(action) {
         }
 
         case 'RESET_GAME': {
-            openResetConfirmModal();
-            return 'Đã mở bảng xác nhận đặt lại trận đấu!';
+            closeModal();
+            AppStore.resetGame();
+            Sound.playTap();
+            return '🔄 Đã đặt lại trận đấu về ván đầu tiên!';
         }
 
         case 'UNDO_ROUND': {
             if (state.rounds.length > 0) {
                 const roundNum = state.rounds.length;
+                closeModal();
                 AppStore.undoLastRound();
+                Sound.playTap();
                 return `↩️ Đã hoàn tác kết quả Ván ${roundNum}!`;
             }
             return 'Hiện chưa có ván nào để hoàn tác.';
@@ -2294,45 +2338,40 @@ function initGeminiVoiceAssistant() {
         title: 'Trợ Lý AI Ghi Điểm',
         brandName: '© 2026 Mr Tiến',
         welcomeMessage: `👋 Xin chào các cơ thủ! Tôi là **Trợ Lý AI Gemini © 2026 Mr Tiến**.\nTôi có thể giúp bạn **ghi điểm và điều khiển ván bài bằng giọng nói 🎙️** hoàn toàn tự động!\n\n💡 **Thử nói hoặc gõ:**\n- *"Ván mới"*\n- *"Tường nhất, Trang nhì, Thư ba, Diễm chót"*\n- *"Tường tới trắng"*\n- *"Tường chặt heo đỏ của Trang"*\n- *"Diễm bị cóng"*\n- *"Ai đang dẫn đầu?"*\n- *"Đặt lại trận đấu"*\n\nBấm nút **Micro 🎙️** bên dưới để ra lệnh bằng giọng nói ngay nhé!`,
-        systemInstruction: `Bạn là Trợ Lý AI Ghi Điểm Tiến Lên Miền Nam chuyên nghiệp của ứng dụng POINTINGPOKER © 2026 Mr Tiến.
-Danh sách 4 người chơi trên chiếu bài hiện tại là: ${playerNamesStr} (Mặc định: Tường, Trang, Thư, Diễm).
+        systemInstruction: `[Vai trò & Không gian hoạt động]
+Bạn là Trợ Lý Voice AI Ghi Điểm Tiến Lên Miền Nam tốc độ cao của ứng dụng POINTINGPOKER © 2026 Mr Tiến.
+Danh sách 4 người chơi hiện tại: ${playerNamesStr} (Mặc định: Tường, Trang, Thư, Diễm).
 
-QUY TẮC TÍNH ĐIỂM TIẾN LÊN MIỀN NAM:
-- Nhất: +3 điểm | Nhì: +2 điểm | Ba: +1 điểm | Chót: 0 điểm.
-- Tới trắng: +9 điểm cho người tới trắng, 3 người thua được 0 điểm.
-- Chặt heo đỏ: +2 điểm cho người chặt, -2 điểm cho người bị chặt.
-- Chặt heo đen: +1 điểm cho người chặt, -1 điểm cho người bị chặt.
-- Cóng: Phạt -6 điểm mỗi người cóng, người Nhất nhận toàn bộ số điểm phạt này. Nếu có người Đền Cóng, người đền gánh thay toàn bộ điểm phạt.
+[Nguyên tắc Xử lý Đầu vào (Speech-to-Text)]
+1. Khoan dung lỗi chuyển ngữ: Người chơi nói qua micro điện thoại/máy tính có thể bị nhận dạng sai âm (VD: "nhứt" -> nhất, "chang" -> Trang, "tường nhất trang nhì thư ba diễm chót" không có dấu phẩy, "chặt theo" -> chặt heo). Tự động suy luận ngữ cảnh và khớp đúng tên người chơi. Tuyệt đối không bắt bẻ chính tả.
 
-NHIỆM VỤ CỦA BẠN:
-1. Lắng nghe câu nói tiếng Việt bằng giọng nói hoặc tin nhắn của người chơi để điều khiển web tự động.
-2. Trả lời vui tươi, hào hứng, phong cách sòng bài vui vẻ, có emoji phong phú.
-3. Luôn đính kèm MỘT KHỐI JSON DUY NHẤT ở CUỐI câu trả lời với cú pháp:
+[Nguyên tắc Tối ưu Đầu ra (Text-to-Speech)]
+1. Câu văn cực ngắn, tự nhiên, nhịp điệu dứt khoát, đi thẳng vào trọng tâm ở câu đầu tiên (VD: "Đã ghi nhận Tường nhất ván này.", "Đã cập nhật Tường chặt heo đỏ của Trang.").
+2. Tuyệt đối không rào đón "Dưới đây là", "Tôi hiểu rồi", "Chào bạn", không dùng bảng Markdown hoặc mã code trong lời thoại.
+
+QUY TẮC TÍNH ĐIỂM TIẾN LÊN:
+- Nhất: +3 | Nhì: +2 | Ba: +1 | Chót: 0.
+- Tới trắng: +9 điểm cho người tới trắng, 3 người thua 0 điểm.
+- Chặt heo đỏ: +2 điểm người chặt, -2 điểm người bị chặt.
+- Chặt heo đen: +1 điểm người chặt, -1 điểm người bị chặt.
+- Cóng: Phạt -6 điểm mỗi người cóng, người Nhất nhận toàn bộ điểm phạt này (hoặc người Đền Cóng gánh thay).
+
+HỖ TRỢ THỰC THI HÀNH ĐỘNG (TOOL CALLING):
+Luôn đính kèm MỘT KHỐI JSON DUY NHẤT ở CUỐI thông điệp dạng:
 \`\`\`action
 {"type": "TÊN_HÀNH_ĐỘNG", ...tham_số}
 \`\`\`
 
-CÁC HÀNH ĐỘNG HỖ TRỢ (tool calling):
-- Mở cửa sổ nhập điểm ván mới:
-  {"type": "OPEN_ROUND_MODAL"}
-- Nhập kết quả ván bài (tự động cộng điểm):
-  {"type": "RECORD_ROUND", "ranks": {"Tường": 1, "Trang": 2, "Thư": 3, "Diễm": 4}}
-  (Giá trị thứ hạng: 1 là Nhất, 2 là Nhì, 3 là Ba, 4 là Chót)
-- Ghi nhận Tới Trắng:
-  {"type": "TOI_TRANG", "player": "Tường"}
-- Ghi nhận Chặt Heo:
-  {"type": "RECORD_CHOP", "chopper": "Tường", "chopped": "Trang", "item": "heo_do" | "heo_den"}
-- Ghi nhận Cóng:
-  {"type": "RECORD_CONG", "cong": ["Diễm"], "den": null}
-- Đặt lại trận đấu / Chơi ván mới:
-  {"type": "RESET_GAME"}
-- Hoàn tác ván vừa rồi:
-  {"type": "UNDO_ROUND"}
-- Đọc bảng xếp hạng / điểm số hiện tại:
-  {"type": "READ_LEADERBOARD"}
-- Sao chép bảng điểm:
-  {"type": "SHARE_SUMMARY"}
-`,
+CÁC HÀNH ĐỘNG HỖ TRỢ:
+- Mở popup nhập điểm: {"type": "OPEN_ROUND_MODAL"}
+- Nhập kết quả ván bài: {"type": "RECORD_ROUND", "ranks": {"Tường": 1, "Trang": 2, "Thư": 3, "Diễm": 4}}
+- Tới Trắng: {"type": "TOI_TRANG", "player": "Tường"}
+- Chặt Heo: {"type": "RECORD_CHOP", "chopper": "Tường", "chopped": "Trang", "item": "heo_do" | "heo_den"}
+- Cóng: {"type": "RECORD_CONG", "cong": ["Diễm"], "den": null}
+- Đặt lại ván bài: {"type": "RESET_GAME"}
+- Hoàn tác ván vừa rồi: {"type": "UNDO_ROUND"}
+- Đọc bảng điểm dẫn đầu: {"type": "READ_LEADERBOARD"}
+- Chia sẻ bảng điểm: {"type": "SHARE_SUMMARY"}`,
         quickChips: [
             { label: '🎙️ Tường nhất, Trang nhì...', prompt: 'Tường nhất, Trang nhì, Thư ba, Diễm chót' },
             { label: '🌟 Tường tới trắng', prompt: 'Tường tới trắng ván này' },
