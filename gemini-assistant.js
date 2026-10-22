@@ -117,9 +117,12 @@ Bạn là trợ lý AI chuyên nghiệp phiên bản Pro cao cấp, tốc độ 
   let vadAnimFrame = null;
   let silenceTicker = null;
   let lastSpeechTimestamp = 0;
+  let ambientNoiseFloor = 14;
+  let noiseFloorCalibrationCount = 0;
   let isUserCurrentlyTalking = false;
   let hasUserSpoken = false;
   let latestRecognizedText = '';
+  let sessionAccumulatedText = '';
   let speechRestartCount = 0;
 
   // Queue TTS Sentence-Chunked
@@ -127,6 +130,15 @@ Bạn là trợ lý AI chuyên nghiệp phiên bản Pro cao cấp, tốc độ 
   let isTtsPlaying = false;
 
   const $ = id => document.getElementById(id);
+
+  function maskApiKey(key) {
+    if (!key || typeof key !== 'string') return 'Chưa cấu hình';
+    const trimmed = key.trim();
+    if (trimmed.length < 10) return 'Chưa cấu hình';
+    const prefix = trimmed.slice(0, 6);
+    const suffix = trimmed.slice(-4);
+    return `${prefix}••••••••••••${suffix}`;
+  }
 
   function escapeHTML(str) {
     if (!str) return '';
@@ -433,10 +445,27 @@ Bạn là trợ lý AI chuyên nghiệp phiên bản Pro cao cấp, tốc độ 
           </div>
           <form id="geminiSettingsForm" class="settings-form" onsubmit="return false;">
             <div class="settings-group">
-              <label class="settings-label" for="geminiApiKeyInput">Gemini Pro API Key:</label>
-              <div class="settings-input-row">
-                <input type="password" id="geminiApiKeyInput" class="settings-text-input" placeholder="Dán API Key (AIzaSy...)" autocomplete="off" />
-                <button type="button" id="geminiApiKeyToggleEye" class="settings-icon-toggle" title="Hiện/Ẩn Key">👁️</button>
+              <label class="settings-label">Gemini Pro API Key:</label>
+              
+              <!-- Khung Trạng Thái Bảo Mật (Ẩn API Key Hoàn Toàn) -->
+              <div class="settings-key-security-box" id="geminiKeySecurityBox">
+                <div class="security-status-indicator">
+                  <span class="status-shield">🛡️</span>
+                  <div class="security-details">
+                    <span class="security-title">Bảo Mật API Key:</span>
+                    <span class="security-status-val" id="geminiKeyStatusVal">🔒 Đang kiểm tra...</span>
+                  </div>
+                </div>
+                <button type="button" id="geminiClearKeyBtn" class="settings-mini-btn" title="Xóa API Key cá nhân và dùng mặc định">✕ Đặt lại</button>
+              </div>
+
+              <!-- Ô nhập Key mới bảo mật, luôn để trống để tránh lộ key cũ -->
+              <div class="settings-input-row" style="margin-top: 6px;">
+                <input type="password" id="geminiApiKeyInput" class="settings-text-input" placeholder="🔑 Nhập Key mới để thay đổi (để trống nếu giữ nguyên)..." autocomplete="off" />
+                <button type="button" id="geminiApiKeyToggleEye" class="settings-icon-toggle" title="Hiện/Ẩn ký tự đang nhập">👁️</button>
+              </div>
+              <div class="settings-input-subtext">
+                🔒 <em>API Key được mã hóa và ẩn an toàn, chống nhìn trộm màn hình và bảo vệ thông tin tài khoản.</em>
               </div>
             </div>
 
@@ -559,21 +588,43 @@ Bạn là trợ lý AI chuyên nghiệp phiên bản Pro cao cấp, tốc độ 
       }
     };
 
+    const clearKeyBtn = $('geminiClearKeyBtn');
+    if (clearKeyBtn) {
+      clearKeyBtn.onclick = () => {
+        try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+        apiKey = DEFAULT_KEY;
+        try { localStorage.setItem(STORAGE_KEY, apiKey); } catch (e) {}
+        updateKeySecurityDisplay();
+        updateStatus();
+        const inp = $('geminiApiKeyInput');
+        if (inp) {
+          inp.value = '';
+          inp.placeholder = '🔑 Nhập Key mới để thay đổi (để trống nếu giữ nguyên)...';
+        }
+        showSettingsStatus('🔄 Đã đặt lại về cấu hình API Key mặc định của hệ thống.', true);
+      };
+    }
+
     $('geminiSilenceSlider').oninput = e => {
       const val = parseFloat(e.target.value).toFixed(1);
       $('geminiSilenceSliderVal').textContent = `${val}s`;
     };
 
     $('geminiTestKeyBtn').onclick = async () => {
-      const key = $('geminiApiKeyInput').value.trim();
-      if (!key) {
-        showSettingsStatus('⚠️ Vui lòng nhập API Key để kiểm tra', false);
+      const inputKey = $('geminiApiKeyInput').value.trim();
+      const keyToTest = inputKey || apiKey;
+      if (!keyToTest) {
+        showSettingsStatus('⚠️ Chưa có API Key nào để kiểm tra', false);
         return;
       }
       showSettingsStatus('⏳ Đang kiểm tra kết nối với Google Gemini Pro API...', null);
-      const res = await testGeminiApiKey(key);
+      const res = await testGeminiApiKey(keyToTest);
       if (res.success) {
         showSettingsStatus(`✅ Kết nối thành công! Đã kích hoạt mô hình ${res.model}`, true);
+        if (inputKey) {
+          // Người dùng đã nhập key hợp lệ trong ô kiểm tra
+          updateKeySecurityDisplay(inputKey);
+        }
       } else {
         showSettingsStatus(`❌ Lỗi kết nối: ${res.error}`, false);
       }
@@ -585,10 +636,34 @@ Bạn là trợ lý AI chuyên nghiệp phiên bản Pro cao cấp, tốc độ 
     };
   }
 
+  function updateKeySecurityDisplay(overrideKey = null) {
+    const statusVal = $('geminiKeyStatusVal');
+    if (!statusVal) return;
+    const currentKey = overrideKey || apiKey;
+    if (currentKey && currentKey.length > 10) {
+      statusVal.innerHTML = `<span class="key-masked-pill">🔒 ${escapeHTML(maskApiKey(currentKey))}</span>`;
+    } else {
+      statusVal.innerHTML = `<span class="key-unconfigured">⚠️ Chưa cấu hình Key</span>`;
+    }
+  }
+
   function openSettingsModal() {
     const modal = $('geminiSettingsModal');
     if (!modal) return;
-    $('geminiApiKeyInput').value = apiKey || '';
+    
+    // ẨN HIỂN THỊ API KEY: Tuyệt đối không gán chuỗi API Key thô vào ô input
+    const inputElem = $('geminiApiKeyInput');
+    if (inputElem) {
+      inputElem.value = '';
+      inputElem.type = 'password';
+      inputElem.placeholder = (apiKey && apiKey.length > 10)
+        ? '🔑 Nhập Key mới để thay đổi (để trống nếu giữ nguyên)...'
+        : '🔑 Dán API Key (AIzaSy...)';
+    }
+
+    // Hiển thị trạng thái bảo mật dạng masked (ẩn an toàn)
+    updateKeySecurityDisplay();
+
     $('geminiModelSelect').value = preferredModel;
     const sSec = ((config.silenceTimeoutMs || 3000) / 1000).toFixed(1);
     $('geminiSilenceSlider').value = sSec;
@@ -634,14 +709,23 @@ Bạn là trợ lý AI chuyên nghiệp phiên bản Pro cao cấp, tốc độ 
   }
 
   function saveSettingsFromModal() {
-    const newKey = $('geminiApiKeyInput').value.trim();
+    const inputKey = $('geminiApiKeyInput').value.trim();
     const newModel = $('geminiModelSelect').value;
     const newSilence = Math.round(parseFloat($('geminiSilenceSlider').value) * 1000);
 
-    if (newKey) {
-      apiKey = newKey;
-      try { localStorage.setItem(STORAGE_KEY, apiKey); } catch (e) {}
+    let keyNotice = '';
+    if (inputKey) {
+      if (inputKey.length >= 10) {
+        apiKey = inputKey;
+        try { localStorage.setItem(STORAGE_KEY, apiKey); } catch (e) {}
+        keyNotice = ' (Đã cập nhật API Key an toàn)';
+      } else {
+        showSettingsStatus('⚠️ API Key không hợp lệ (độ dài quá ngắn)', false);
+        return;
+      }
     }
+    // Nếu inputKey trống: Giữ nguyên apiKey hiện tại mà không làm mất key!
+
     preferredModel = newModel;
     try { localStorage.setItem(STORAGE_MODEL_KEY, preferredModel); } catch (e) {}
 
@@ -651,7 +735,7 @@ Bạn là trợ lý AI chuyên nghiệp phiên bản Pro cao cấp, tốc độ 
     updateStatus();
     updateModelBadge();
     closeSettingsModal();
-    addMessage(`⚙️ Đã lưu cấu hình: Mô hình **${preferredModel}**, thời gian tự gửi sau khi ngưng nói: **${(newSilence / 1000).toFixed(1)}s**!`, 'ai', false);
+    addMessage(`⚙️ Đã lưu cấu hình: Mô hình **${preferredModel}**, thời gian tự gửi khi dừng nói: **${(newSilence / 1000).toFixed(1)}s**!${keyNotice}`, 'ai', false);
   }
 
   function updateStatus() {
@@ -698,7 +782,7 @@ Bạn là trợ lý AI chuyên nghiệp phiên bản Pro cao cấp, tốc độ 
   }
 
   /* --------------------------------------------------------------------------
-     4. VOICE ACTIVITY DETECTION (VAD) & TỰ NGẮT CHUẨN XÁC 3.0 GIÂY
+     4. VOICE ACTIVITY DETECTION (VAD) & TỰ ĐỘNG GỬI SAU ĐÚNG 3.0 GIÂY NGƯNG NÓI
      -------------------------------------------------------------------------- */
   function startSilenceMonitoring() {
     stopSilenceMonitoring();
@@ -720,7 +804,7 @@ Bạn là trợ lý AI chuyên nghiệp phiên bản Pro cao cấp, tốc độ 
 
       const elapsed = Date.now() - lastSpeechTimestamp;
       const remainingMs = Math.max(0, timeout - elapsed);
-      const remainingSec = Math.ceil(remainingMs / 1000);
+      const remainingSec = (remainingMs / 1000).toFixed(1);
       const percent = Math.min(100, Math.max(0, (remainingMs / timeout) * 100));
 
       const pBar = $('geminiSilenceProgressBar');
@@ -730,19 +814,21 @@ Bạn là trợ lý AI chuyên nghiệp phiên bản Pro cao cấp, tốc độ 
         if (remainingMs > 0) {
           updateVisualizerStatus(`⏳ Ngưng nói... Tự gửi sau <strong class="silence-timer-digit">${remainingSec}s</strong>`);
         } else {
-          // TIME IS UP! Auto-send!
+          // THỜI GIAN NGƯNG NÓI ĐÃ HẾT (ĐÚNG 3.0S) -> TỰ ĐỘNG GỬI LỆNH NGAY!
           stopSilenceMonitoring();
           updateVisualizerStatus('⚡ Đã dừng 3s, gửi lệnh ngay...');
           const textToSend = latestRecognizedText.trim();
           stopListening();
-          if (navigator.vibrate) navigator.vibrate([40, 30, 40]);
-          setTimeout(() => ask(textToSend), 120);
+          if (navigator.vibrate) {
+            try { navigator.vibrate([40, 30, 40]); } catch (e) {}
+          }
+          setTimeout(() => ask(textToSend), 100);
         }
       } else {
         updateVisualizerStatus('🎙️ Đang nghe... Hãy nói yêu cầu của bạn!');
         if (pBar) pBar.style.width = '100%';
       }
-    }, 80);
+    }, 50);
   }
 
   function stopSilenceMonitoring() {
@@ -782,6 +868,8 @@ Bạn là trợ lý AI chuyên nghiệp phiên bản Pro cao cấp, tốc độ 
         micAnalyser.fftSize = 64;
         source.connect(micAnalyser);
 
+        ambientNoiseFloor = 14;
+        noiseFloorCalibrationCount = 0;
         startVisualizerLoop();
       }
     } catch (err) {
@@ -816,9 +904,16 @@ Bạn là trợ lý AI chuyên nghiệp phiên bản Pro cao cấp, tốc độ 
         sum += dataArray[i];
       }
       const avg = sum / dataArray.length;
-      const normalizedVol = Math.min(1, avg / 120);
 
-      // 5 Bars Sóng Âm
+      // Hiệu chỉnh ngưỡng tạp âm môi trường trong 30 khung hình đầu
+      if (noiseFloorCalibrationCount < 30) {
+        ambientNoiseFloor = Math.max(12, Math.min(32, (ambientNoiseFloor * noiseFloorCalibrationCount + avg) / (noiseFloorCalibrationCount + 1)));
+        noiseFloorCalibrationCount++;
+      }
+
+      const normalizedVol = Math.min(1, Math.max(0, (avg - (ambientNoiseFloor * 0.7)) / 85));
+
+      // 5 Bars Sóng Âm Neon nhảy theo âm thanh thực
       const b1 = $('vBar1');
       const b2 = $('vBar2');
       const b3 = $('vBar3');
@@ -826,15 +921,16 @@ Bạn là trợ lý AI chuyên nghiệp phiên bản Pro cao cấp, tốc độ 
       const b5 = $('vBar5');
 
       if (b1 && b2 && b3 && b4 && b5) {
-        b1.style.height = `${Math.max(4, normalizedVol * 16)}px`;
-        b2.style.height = `${Math.max(6, normalizedVol * 22)}px`;
-        b3.style.height = `${Math.max(8, normalizedVol * 26)}px`;
-        b4.style.height = `${Math.max(6, normalizedVol * 20)}px`;
-        b5.style.height = `${Math.max(4, normalizedVol * 14)}px`;
+        b1.style.height = `${Math.max(4, normalizedVol * 18)}px`;
+        b2.style.height = `${Math.max(6, normalizedVol * 24)}px`;
+        b3.style.height = `${Math.max(8, normalizedVol * 28)}px`;
+        b4.style.height = `${Math.max(6, normalizedVol * 22)}px`;
+        b5.style.height = `${Math.max(4, normalizedVol * 16)}px`;
       }
 
-      const SPEECH_THRESHOLD = 16;
-      isUserCurrentlyTalking = (avg > SPEECH_THRESHOLD);
+      // Ngưỡng giọng nói động thích ứng với tạp âm phòng
+      const speechThreshold = Math.max(26, ambientNoiseFloor + 12);
+      isUserCurrentlyTalking = (avg > speechThreshold);
       if (isUserCurrentlyTalking && isListening && hasUserSpoken) {
         lastSpeechTimestamp = Date.now();
       }
@@ -880,6 +976,7 @@ Bạn là trợ lý AI chuyên nghiệp phiên bản Pro cao cấp, tốc độ 
     stopTTS();
     hasUserSpoken = false;
     latestRecognizedText = '';
+    sessionAccumulatedText = '';
     speechRestartCount = 0;
 
     await setupMicStreamAndVAD();
@@ -893,7 +990,9 @@ Bạn là trợ lý AI chuyên nghiệp phiên bản Pro cao cấp, tốc độ 
 
       speechRecognition.onstart = () => {
         isListening = true;
-        if (navigator.vibrate) navigator.vibrate(50);
+        if (navigator.vibrate) {
+          try { navigator.vibrate(50); } catch (e) {}
+        }
         $('geminiMicBtn')?.classList.add('recording');
         $('geminiVoiceVisualizerBar')?.classList.add('active');
         updateVisualizerStatus('🎙️ Đang nghe... Hãy nói yêu cầu của bạn!');
@@ -904,27 +1003,33 @@ Bạn là trợ lý AI chuyên nghiệp phiên bản Pro cao cấp, tốc độ 
         }
       };
 
+      speechRecognition.onspeechstart = () => {
+        if (hasUserSpoken) {
+          lastSpeechTimestamp = Date.now();
+        }
+      };
+
       speechRecognition.onresult = e => {
         let interimText = '';
-        let finalText = '';
 
         for (let i = e.resultIndex; i < e.results.length; ++i) {
+          const chunk = e.results[i][0].transcript;
           if (e.results[i].isFinal) {
-            finalText += e.results[i][0].transcript;
+            sessionAccumulatedText = (sessionAccumulatedText ? sessionAccumulatedText + ' ' : '') + chunk.trim();
           } else {
-            interimText += e.results[i][0].transcript;
+            interimText += chunk;
           }
         }
 
-        const currentText = (finalText || interimText).trim();
-        if (currentText) {
-          latestRecognizedText = currentText;
+        const fullCurrentText = (sessionAccumulatedText + (interimText ? ' ' + interimText : '')).trim();
+        if (fullCurrentText) {
+          latestRecognizedText = fullCurrentText;
           hasUserSpoken = true;
           lastSpeechTimestamp = Date.now();
           const input = $('geminiInput');
-          if (input) input.value = currentText;
+          if (input) input.value = fullCurrentText;
 
-          // Bắt đầu đếm ngược thời gian thực
+          // Bắt đầu hoặc khởi động lại đếm ngược thời gian thực
           if (!silenceTicker) {
             startSilenceMonitoring();
           }
@@ -940,28 +1045,42 @@ Bạn là trợ lý AI chuyên nghiệp phiên bản Pro cao cấp, tốc độ 
       };
 
       speechRecognition.onend = () => {
-        if (isListening) {
-          if (hasUserSpoken && latestRecognizedText.trim().length > 0) {
-            const elapsed = Date.now() - lastSpeechTimestamp;
-            if (elapsed >= 1200) {
-              // Đã ngưng nói đủ lâu -> gửi lệnh ngay
-              stopSilenceMonitoring();
-              const textToSend = latestRecognizedText.trim();
-              stopListening();
-              ask(textToSend);
-            } else {
-              if (speechRestartCount < 4) {
-                speechRestartCount++;
-                try { speechRecognition.start(); } catch (err) {}
+        if (!isListening) return;
+        const timeout = config.silenceTimeoutMs || 3000;
+        const elapsed = Date.now() - lastSpeechTimestamp;
+
+        // Nếu đã nói và thời gian im lặng đạt đủ 3.0s, gửi lệnh ngay
+        if (hasUserSpoken && latestRecognizedText.trim().length > 0 && elapsed >= timeout) {
+          stopSilenceMonitoring();
+          const textToSend = latestRecognizedText.trim();
+          stopListening();
+          if (navigator.vibrate) {
+            try { navigator.vibrate([40, 30, 40]); } catch (e) {}
+          }
+          ask(textToSend);
+          return;
+        }
+
+        // Tự động khởi động lại nhận diện để tránh ngắt quãng giữa câu
+        if (speechRestartCount < 10) {
+          speechRestartCount++;
+          try {
+            speechRecognition.start();
+          } catch (err) {
+            setTimeout(() => {
+              if (isListening) {
+                try { speechRecognition.start(); } catch (e) {}
               }
-            }
+            }, 120);
+          }
+        } else {
+          if (hasUserSpoken && latestRecognizedText.trim().length > 0) {
+            stopSilenceMonitoring();
+            const textToSend = latestRecognizedText.trim();
+            stopListening();
+            ask(textToSend);
           } else {
-            if (speechRestartCount < 4) {
-              speechRestartCount++;
-              try { speechRecognition.start(); } catch (err) {}
-            } else {
-              stopListening();
-            }
+            stopListening();
           }
         }
       };
