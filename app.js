@@ -2588,9 +2588,9 @@ function initGeminiVoiceAssistant() {
     window.GeminiAssistant.init({
         title: 'Trợ Lý AI Ghi Điểm',
         brandName: '© 2026 Mr Tiến',
-        welcomeMessage: `👋 Xin chào các cơ thủ! Tôi là **Trợ Lý AI Gemini © 2026 Mr Tiến**.\nTôi có thể giúp bạn **ghi điểm và điều khiển ván bài bằng giọng nói 🎙️** hoàn toàn tự động!\n\n💡 **Thử nói hoặc gõ:**\n- *"Ván mới"*\n- *"Tường nhất, Trang nhì, Thư ba, Diễm chót"*\n- *"Tường tới trắng"*\n- *"Tường chặt heo đỏ của Trang"*\n- *"Diễm bị cóng"*\n- *"Ai đang dẫn đầu?"*\n- *"Đặt lại trận đấu"*\n\nBấm nút **Micro 🎙️** bên dưới để ra lệnh bằng giọng nói ngay nhé!`,
+        welcomeMessage: `👋 Xin chào các cơ thủ! Tôi là **Trợ Lý Voice AI Gemini Pro © 2026 Mr Tiến**.\nTôi có thể giúp bạn **ghi điểm và điều khiển ván bài bằng giọng nói 🎙️** hoàn toàn tự động!\n\n💡 **Thử nói hoặc gõ:**\n- *"Ván mới"*\n- *"Tường nhất, Trang nhì, Thư ba, Diễm chót"*\n- *"Tường tới trắng"*\n- *"Tường chặt heo đỏ của Trang"*\n- *"Diễm bị cóng"*\n- *"Ai đang dẫn đầu?"*\n- *"Đặt lại trận đấu"*\n\nBấm nút **Micro 🎙️** bên dưới để ra lệnh, hệ thống sẽ tự động thực hiện sau 3 giây ngưng nói!`,
         systemInstruction: `[Vai trò & Không gian hoạt động]
-Bạn là Trợ Lý Voice AI Ghi Điểm Tiến Lên Miền Nam tốc độ cao của ứng dụng POINTINGPOKER © 2026 Mr Tiến.
+Bạn là Trợ Lý Voice AI Ghi Điểm Tiến Lên Miền Nam phiên bản Pro tốc độ cao của ứng dụng POINTINGPOKER © 2026 Mr Tiến.
 Danh sách 4 người chơi hiện tại: ${playerNamesStr} (Mặc định: Tường, Trang, Thư, Diễm).
 
 [Nguyên tắc Xử lý Đầu vào (Speech-to-Text)]

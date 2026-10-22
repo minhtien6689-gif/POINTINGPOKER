@@ -1,15 +1,18 @@
 /**
  * ============================================================================
- * TRỢ LÝ VOICE AI GEMINI TỐC ĐỘ CAO – CHUẨN ĐA NỀN TẢNG (iOS, Android, Desktop)
+ * TRỢ LÝ VOICE AI GEMINI PRO TỐC ĐỘ CAO – CHUẨN ĐA NỀN TẢNG (iOS, Android, Desktop)
  * Tác giả: Mr Tiến © 2026
  * ============================================================================
+ * - Ưu tiên Gemini Pro: gemini-2.5-pro, gemini-1.5-pro, gemini-2.0-pro (Pro Mode)
  * - Tối ưu Voice AI: Khoan dung STT, Thân thiện TTS tuyến tính, Không rào đón.
  * - Generation Config Tốc Độ Cao: temperature: 0.35, maxOutputTokens: 250, topP: 0.8.
  * - Vượt rào cản Auto-play trên iOS Safari: Mở khóa Web Audio Context im lặng 0.1s.
- * - Voice Activity Detection (VAD): Tự ngắt sau ĐÚNG 3 GIÂY im lặng (Hands-free 100%).
- * - Streaming SSE & Chunked TTS: Đọc ngay câu đầu tiên chỉ sau vài trăm mili-giây.
- * - Visual Feedback: Waveform Visualizer 5 thanh LED neon nhảy theo biên độ thật.
- * - Function Calling / Action JSON: Thuật toán Brace-Matching trích xuất JSON chuẩn xác 100%.
+ * - Voice Activity Detection (VAD) Tối Ưu: Tự động gửi sau ĐÚNG 3.0 GIÂY ngưng nói
+ *   (Thanh đếm ngược thời gian thực 3s -> 2s -> 1s, thanh tiến trình mượt mà).
+ * - Phản hồi tiếp nhận lệnh ngay lập tức (Zero-latency Acknowledgment).
+ * - Thực thi Action NGAY KHI PHÁT HIỆN trong luồng Stream SSE (Không chờ kết thúc).
+ * - Modal Cài Đặt Gemini Pro API Key & Giọng Nói Neumorphism trực tiếp trong ứng dụng.
+ * - Offline Smart NLP Engine dự phòng cực kỳ thông minh khi mất kết nối mạng.
  * ============================================================================
  */
 
@@ -25,12 +28,22 @@
   'use strict';
 
   const STORAGE_KEY = 'gemini_api_key';
+  const STORAGE_MODEL_KEY = 'gemini_preferred_model';
+  const STORAGE_SILENCE_KEY = 'gemini_silence_timeout';
   const DEFAULT_KEY = 'AIzaSyAHWjI_8gZa-TSzVyvHJPYTrPFC3LvFjhA';
-  const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-1.5-flash'];
 
-  // Default Prompt Chuẩn Voice AI © 2026 Mr Tiến
+  // Danh sách mô hình ưu tiên: GEMINI PRO CAO CẤP HÀNG ĐẦU
+  const DEFAULT_PRO_MODELS = [
+    'gemini-2.5-pro',
+    'gemini-1.5-pro',
+    'gemini-2.0-pro-exp-02-05',
+    'gemini-2.5-flash',
+    'gemini-1.5-flash'
+  ];
+
+  // System Instruction Chuẩn Voice AI © 2026 Mr Tiến
   const DEFAULT_SYSTEM_INSTRUCTION = `[Vai trò & Không gian hoạt động]
-Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp trực tiếp trên nền tảng web đa thiết bị © 2026 Mr Tiến. Mục tiêu của bạn là cung cấp thông tin chính xác, giải quyết vấn đề ngay lập tức và mang lại trải nghiệm giao tiếp bằng giọng nói (Voice AI) mượt mà như con người.
+Bạn là trợ lý AI chuyên nghiệp phiên bản Pro cao cấp, tốc độ cao được tích hợp trực tiếp trên nền tảng web đa thiết bị © 2026 Mr Tiến. Mục tiêu của bạn là cung cấp thông tin chính xác, giải quyết vấn đề ngay lập tức và mang lại trải nghiệm giao tiếp bằng giọng nói (Voice AI) mượt mà như con người.
 
 [Nguyên tắc Xử lý Đầu vào (Speech-to-Text)]
 1. Khoan dung với lỗi chuyển ngữ: Đầu vào của người dùng thường được tạo ra từ nhận diện giọng nói trên điện thoại/máy tính, do đó sẽ có lỗi đồng âm, sai chính tả, ngắt câu sai hoặc lẫn tạp âm. Bạn phải tự động suy luận ngữ cảnh và ý định cốt lõi. Tuyệt đối không bắt bẻ lỗi chính tả hoặc yêu cầu nhắc lại vì những lỗi này.
@@ -41,7 +54,7 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
 3. Hạn chế Markdown phức tạp: Tuyệt đối không sử dụng bảng biểu (tables), danh sách đánh dấu lồng ghép phức tạp, hoặc mã code dài trong luồng hội thoại thông thường, vì các trình đọc giọng nói không thể phát âm chúng một cách có nghĩa. Nếu cần cung cấp code hoặc cấu trúc phức tạp, hãy xác nhận ngắn gọn bằng giọng nói và chỉ định hiển thị chi tiết trên màn hình.
 
 [Hỗ trợ Thực thi Tác vụ (Function Calling/JSON)]
-- Nếu người dùng yêu cầu thực hiện hành động trên ứng dụng web (ví dụ: chuyển trang, nộp bài, xem điểm, tìm kiếm, lọc dữ liệu, reset ván chơi...), hãy phản hồi bằng MỘT câu xác nhận bằng lời cực kỳ ngắn (Ví dụ: "Đang mở bảng điểm cho bạn.", "Đã cập nhật dữ liệu.") kèm theo mã lệnh định dạng JSON ở cuối thông điệp để hệ thống front-end tự động bắt sự kiện và thực thi:
+- Nếu người dùng yêu cầu thực hiện hành động trên ứng dụng web (ví dụ: chuyển trang, nộp bài, xem điểm, tìm kiếm, lọc dữ liệu, reset ván chơi, quay số, đổi bộ bài...), hãy phản hồi bằng MỘT câu xác nhận bằng lời cực kỳ ngắn (Ví dụ: "Đang mở bảng điểm cho bạn.", "Đã cập nhật dữ liệu.") kèm theo mã lệnh định dạng JSON ở cuối thông điệp để hệ thống front-end tự động bắt sự kiện và thực thi:
 \`\`\`action
 {"type": "TÊN_HÀNH_ĐỘNG", "params": {...}}
 \`\`\``;
@@ -49,9 +62,10 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
   // Cấu hình thông số mặc định (Thời gian ngưng nói chuẩn xác 3.0 giây)
   const defaults = {
     apiKey: DEFAULT_KEY,
-    title: 'Trợ Lý Voice AI',
+    preferredModel: 'gemini-2.5-pro',
+    title: 'Trợ Lý Voice AI Pro',
     brandName: '© 2026 Mr Tiến',
-    welcomeMessage: `Xin chào! Tôi là Trợ Lý Voice AI của Mr Tiến. Hãy chạm vào Mic để bắt đầu nói, hệ thống sẽ tự động gửi lệnh sau 3 giây ngưng nói!`,
+    welcomeMessage: `Xin chào! Tôi là **Trợ Lý Voice AI Gemini Pro © 2026 Mr Tiến**.\nHãy chạm vào **Mic 🎙️** để ra lệnh bằng giọng nói, hệ thống sẽ tự động thực hiện sau 3 giây ngưng nói! Bạn cũng có thể bấm nút **⚙️** ở góc để cài đặt Pro API Key của mình.`,
     systemInstruction: DEFAULT_SYSTEM_INSTRUCTION,
     generationConfig: {
       temperature: 0.35,
@@ -77,6 +91,16 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
   let apiKey = (storedKey && storedKey.trim().length > 10) ? storedKey.trim() : config.apiKey;
   try { localStorage.setItem(STORAGE_KEY, apiKey); } catch (e) {}
 
+  let storedModel = '';
+  try { storedModel = localStorage.getItem(STORAGE_MODEL_KEY); } catch (e) {}
+  let preferredModel = storedModel || config.preferredModel || 'gemini-2.5-pro';
+
+  let storedSilence = null;
+  try { storedSilence = parseInt(localStorage.getItem(STORAGE_SILENCE_KEY), 10); } catch (e) {}
+  if (storedSilence && storedSilence >= 1000 && storedSilence <= 6000) {
+    config.silenceTimeoutMs = storedSilence;
+  }
+
   let isAiWorking = false;
   let chatHistory = [];
   let isListening = false;
@@ -91,9 +115,9 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
   let micAudioStream = null;
   let micAnalyser = null;
   let vadAnimFrame = null;
-  let silenceTimer = null;
-  let silenceCountdownInterval = null;
-  let remainingSilenceSeconds = 3;
+  let silenceTicker = null;
+  let lastSpeechTimestamp = 0;
+  let isUserCurrentlyTalking = false;
   let hasUserSpoken = false;
   let latestRecognizedText = '';
   let speechRestartCount = 0;
@@ -192,7 +216,6 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
     if (!obj || typeof obj !== 'object') return null;
     const res = Object.assign({}, obj);
     if (res.action && !res.type) res.type = res.action;
-    // Phẳng hóa các tham số trong params ra ngoài root để tương thích mọi handler
     if (res.params && typeof res.params === 'object') {
       for (const k in res.params) {
         if (res[k] === undefined) {
@@ -215,7 +238,6 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
         if (audioCtx.state === 'suspended') {
           audioCtx.resume();
         }
-        // Phát đoạn silence 0.1s để Safari cấp quyền Audio Playback
         const buffer = audioCtx.createBuffer(1, 2205, 22050);
         const source = audioCtx.createBufferSource();
         source.buffer = buffer;
@@ -223,7 +245,6 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
         source.start(0);
       }
 
-      // Mở khóa SpeechSynthesis cho iOS Safari
       if ('speechSynthesis' in window) {
         const silentUtt = new SpeechSynthesisUtterance(' ');
         silentUtt.volume = 0.01;
@@ -253,8 +274,15 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
         apiKey = userConfig.apiKey;
         try { localStorage.setItem(STORAGE_KEY, apiKey); } catch (e) {}
       }
+      if (userConfig.preferredModel) {
+        preferredModel = userConfig.preferredModel;
+        try { localStorage.setItem(STORAGE_MODEL_KEY, preferredModel); } catch (e) {}
+      }
       if (userConfig.autoSpeak !== undefined) {
         autoSpeak = !!userConfig.autoSpeak;
+      }
+      if (userConfig.silenceTimeoutMs) {
+        config.silenceTimeoutMs = userConfig.silenceTimeoutMs;
       }
     }
 
@@ -266,6 +294,7 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
     bindEvents();
     if (config.enableVoice) initSpeech();
     updateStatus();
+    updateModelBadge();
   }
 
   function createUI() {
@@ -276,7 +305,7 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
     fab.id = 'geminiFabContainer';
     fab.className = 'gemini-fab-container';
     fab.innerHTML = `
-      <button id="geminiFabBtn" class="gemini-fab-btn" title="Mở ${config.title} (Ctrl+${config.shortcutKey.toUpperCase()})" aria-label="${config.title}">
+      <button id="geminiFabBtn" class="gemini-fab-btn" title="Mở ${escapeHTML(config.title)} (Ctrl+${config.shortcutKey.toUpperCase()})" aria-label="${escapeHTML(config.title)}">
         <div class="gemini-fab-halo" aria-hidden="true"></div>
         <div class="gemini-fab-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" width="28" height="28" fill="none">
@@ -337,11 +366,13 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
               <div class="gemini-title-row">
                 <h3 class="gemini-title">${escapeHTML(config.title)}</h3>
                 <span class="gemini-year-tag">${escapeHTML(config.brandName)}</span>
+                <span class="gemini-pro-badge" id="geminiModelBadge" title="Chế độ Gemini Pro. Bấm để cài đặt">✨ Pro</span>
               </div>
             </div>
           </div>
 
           <div class="gemini-header-actions">
+            <button id="geminiSettingsBtn" class="gemini-icon-btn" title="Cài đặt Gemini Pro API Key &amp; Giọng nói">⚙️</button>
             <button id="geminiVoiceToggleBtn" class="gemini-icon-btn ${autoSpeak ? '' : 'muted'}" title="${autoSpeak ? 'Tự động đọc to: BẬT' : 'Tự động đọc to: TẮT'}">${autoSpeak ? '🔊' : '🔇'}</button>
             <button id="geminiClearChatBtn" class="gemini-icon-btn" title="Làm mới hội thoại">🗑️</button>
             <button id="geminiCloseBtn" class="gemini-icon-btn close-btn" title="Đóng (Esc)">✕</button>
@@ -358,18 +389,23 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
         <!-- Chat Body -->
         <div class="gemini-chat-body" id="geminiChatBody"></div>
 
-        <!-- VOICE WAVEFORM VISUALIZER (Kèm đếm ngược 3 giây im lặng) -->
+        <!-- VOICE WAVEFORM VISUALIZER (Kèm đếm ngược 3 giây im lặng & thanh tiến trình) -->
         <div id="geminiVoiceVisualizerBar" class="gemini-voice-visualizer-bar">
-          <div class="visualizer-info">
-            <span class="visualizer-mic-icon">🎙️</span>
-            <span id="geminiVoiceStatusTxt">Đang nghe... (Tự gửi sau 3s ngưng nói)</span>
+          <div class="visualizer-info-row">
+            <div class="visualizer-info">
+              <span class="visualizer-mic-icon">🎙️</span>
+              <span id="geminiVoiceStatusTxt">Đang nghe... (Tự gửi sau 3s ngưng nói)</span>
+            </div>
+            <div class="visualizer-bars">
+              <span class="v-bar" id="vBar1"></span>
+              <span class="v-bar" id="vBar2"></span>
+              <span class="v-bar" id="vBar3"></span>
+              <span class="v-bar" id="vBar4"></span>
+              <span class="v-bar" id="vBar5"></span>
+            </div>
           </div>
-          <div class="visualizer-bars">
-            <span class="v-bar" id="vBar1"></span>
-            <span class="v-bar" id="vBar2"></span>
-            <span class="v-bar" id="vBar3"></span>
-            <span class="v-bar" id="vBar4"></span>
-            <span class="v-bar" id="vBar5"></span>
+          <div class="silence-progress-wrap" id="geminiSilenceProgressWrap">
+            <div class="silence-progress-bar" id="geminiSilenceProgressBar" style="width: 100%;"></div>
           </div>
         </div>
 
@@ -385,8 +421,55 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
             </button>
           </form>
           <div class="gemini-input-footer">
-            <span>✨ Voice AI đa nền tảng • Tự động ngắt &amp; gửi sau 3s ngưng nói • Hỗ trợ iOS &amp; Android</span>
+            <span>✨ Gemini Pro Voice AI • Tự động gửi sau 3s ngưng nói • Hỗ trợ iOS &amp; Android</span>
           </div>
+        </div>
+
+        <!-- Settings Modal Overlay -->
+        <div id="geminiSettingsModal" class="gemini-settings-modal hidden">
+          <div class="settings-modal-header">
+            <h4 class="settings-modal-title">⚙️ Cài Đặt Gemini Pro Voice AI</h4>
+            <button type="button" id="geminiSettingsCloseBtn" class="gemini-icon-btn close-btn" title="Đóng">✕</button>
+          </div>
+          <form id="geminiSettingsForm" class="settings-form" onsubmit="return false;">
+            <div class="settings-group">
+              <label class="settings-label" for="geminiApiKeyInput">Gemini Pro API Key:</label>
+              <div class="settings-input-row">
+                <input type="password" id="geminiApiKeyInput" class="settings-text-input" placeholder="Dán API Key (AIzaSy...)" autocomplete="off" />
+                <button type="button" id="geminiApiKeyToggleEye" class="settings-icon-toggle" title="Hiện/Ẩn Key">👁️</button>
+              </div>
+            </div>
+
+            <div class="settings-group">
+              <label class="settings-label" for="geminiModelSelect">Phiên bản Gemini ưu tiên:</label>
+              <select id="geminiModelSelect" class="settings-select">
+                <option value="gemini-2.5-pro">Gemini 2.5 Pro (Cao cấp nhất - Khuyên dùng)</option>
+                <option value="gemini-1.5-pro">Gemini 1.5 Pro (Chính xác cao, ổn định)</option>
+                <option value="gemini-2.0-pro-exp-02-05">Gemini 2.0 Pro Experimental</option>
+                <option value="gemini-2.5-flash">Gemini 2.5 Flash (Tốc độ phản hồi cực nhanh)</option>
+                <option value="gemini-1.5-flash">Gemini 1.5 Flash (Dự phòng)</option>
+              </select>
+            </div>
+
+            <div class="settings-group">
+              <div class="settings-slider-row">
+                <label class="settings-label" for="geminiSilenceSlider">Tự động gửi khi ngưng nói:</label>
+                <span id="geminiSilenceSliderVal" class="settings-slider-val">${((config.silenceTimeoutMs || 3000) / 1000).toFixed(1)}s</span>
+              </div>
+              <input type="range" id="geminiSilenceSlider" class="settings-slider" min="1.5" max="5.0" step="0.5" value="${((config.silenceTimeoutMs || 3000) / 1000).toFixed(1)}" />
+            </div>
+
+            <div class="settings-btn-row">
+              <button type="button" id="geminiTestKeyBtn" class="settings-btn settings-btn-test">⚡ Kiểm Tra Key</button>
+              <button type="submit" id="geminiSaveSettingsBtn" class="settings-btn settings-btn-save">💾 Lưu &amp; Áp Dụng</button>
+            </div>
+
+            <div id="geminiSettingsStatusBox" class="settings-status-box"></div>
+
+            <div class="settings-help-text">
+              💡 Dán API Key cá nhân của bạn để mở khóa toàn bộ sức mạnh của <strong>Gemini Pro</strong>. Nhận key miễn phí tại <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio</a>.
+            </div>
+          </form>
         </div>
       </div>
     `;
@@ -410,7 +493,11 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
         toggle();
       }
       if (e.key === 'Escape' && !$('geminiDrawer').classList.contains('hidden')) {
-        close();
+        if (!$('geminiSettingsModal').classList.contains('hidden')) {
+          closeSettingsModal();
+        } else {
+          close();
+        }
       }
     });
 
@@ -459,11 +546,129 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
         }
       };
     }
+
+    // Settings Modal Bindings
+    $('geminiSettingsBtn').onclick = openSettingsModal;
+    $('geminiModelBadge').onclick = openSettingsModal;
+    $('geminiSettingsCloseBtn').onclick = closeSettingsModal;
+
+    $('geminiApiKeyToggleEye').onclick = () => {
+      const inp = $('geminiApiKeyInput');
+      if (inp) {
+        inp.type = inp.type === 'password' ? 'text' : 'password';
+      }
+    };
+
+    $('geminiSilenceSlider').oninput = e => {
+      const val = parseFloat(e.target.value).toFixed(1);
+      $('geminiSilenceSliderVal').textContent = `${val}s`;
+    };
+
+    $('geminiTestKeyBtn').onclick = async () => {
+      const key = $('geminiApiKeyInput').value.trim();
+      if (!key) {
+        showSettingsStatus('⚠️ Vui lòng nhập API Key để kiểm tra', false);
+        return;
+      }
+      showSettingsStatus('⏳ Đang kiểm tra kết nối với Google Gemini Pro API...', null);
+      const res = await testGeminiApiKey(key);
+      if (res.success) {
+        showSettingsStatus(`✅ Kết nối thành công! Đã kích hoạt mô hình ${res.model}`, true);
+      } else {
+        showSettingsStatus(`❌ Lỗi kết nối: ${res.error}`, false);
+      }
+    };
+
+    $('geminiSettingsForm').onsubmit = e => {
+      e.preventDefault();
+      saveSettingsFromModal();
+    };
+  }
+
+  function openSettingsModal() {
+    const modal = $('geminiSettingsModal');
+    if (!modal) return;
+    $('geminiApiKeyInput').value = apiKey || '';
+    $('geminiModelSelect').value = preferredModel;
+    const sSec = ((config.silenceTimeoutMs || 3000) / 1000).toFixed(1);
+    $('geminiSilenceSlider').value = sSec;
+    $('geminiSilenceSliderVal').textContent = `${sSec}s`;
+    hideSettingsStatus();
+    modal.classList.remove('hidden');
+  }
+
+  function closeSettingsModal() {
+    $('geminiSettingsModal')?.classList.add('hidden');
+  }
+
+  function showSettingsStatus(msg, isSuccess) {
+    const box = $('geminiSettingsStatusBox');
+    if (!box) return;
+    box.className = 'settings-status-box active';
+    if (isSuccess === true) box.classList.add('success');
+    else if (isSuccess === false) box.classList.add('error');
+    box.innerHTML = escapeHTML(msg);
+  }
+
+  function hideSettingsStatus() {
+    const box = $('geminiSettingsStatusBox');
+    if (box) {
+      box.className = 'settings-status-box';
+      box.innerHTML = '';
+    }
+  }
+
+  async function testGeminiApiKey(keyToTest) {
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${keyToTest}`);
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, error: data.error?.message || `HTTP ${res.status}` };
+      }
+      const modelNames = (data.models || []).map(m => m.name.replace('models/', ''));
+      const foundPro = modelNames.find(m => m.includes('2.5-pro') || m.includes('1.5-pro')) || 'Gemini Pro';
+      return { success: true, model: foundPro, models: modelNames };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  function saveSettingsFromModal() {
+    const newKey = $('geminiApiKeyInput').value.trim();
+    const newModel = $('geminiModelSelect').value;
+    const newSilence = Math.round(parseFloat($('geminiSilenceSlider').value) * 1000);
+
+    if (newKey) {
+      apiKey = newKey;
+      try { localStorage.setItem(STORAGE_KEY, apiKey); } catch (e) {}
+    }
+    preferredModel = newModel;
+    try { localStorage.setItem(STORAGE_MODEL_KEY, preferredModel); } catch (e) {}
+
+    config.silenceTimeoutMs = newSilence;
+    try { localStorage.setItem(STORAGE_SILENCE_KEY, newSilence.toString()); } catch (e) {}
+
+    updateStatus();
+    updateModelBadge();
+    closeSettingsModal();
+    addMessage(`⚙️ Đã lưu cấu hình: Mô hình **${preferredModel}**, thời gian tự gửi sau khi ngưng nói: **${(newSilence / 1000).toFixed(1)}s**!`, 'ai', false);
   }
 
   function updateStatus() {
     const dot = $('geminiStatusDot');
-    if (dot) dot.className = apiKey ? 'gemini-pulse-dot active' : 'gemini-pulse-dot offline';
+    if (dot) dot.className = (apiKey && apiKey.length > 10) ? 'gemini-pulse-dot active' : 'gemini-pulse-dot offline';
+  }
+
+  function updateModelBadge() {
+    const badge = $('geminiModelBadge');
+    if (!badge) return;
+    if (preferredModel.includes('pro')) {
+      badge.textContent = '✨ Pro';
+      badge.title = `Đang ưu tiên: ${preferredModel}. Bấm để đổi cài đặt.`;
+    } else {
+      badge.textContent = '⚡ Flash';
+      badge.title = `Đang ưu tiên: ${preferredModel}. Bấm để đổi cài đặt.`;
+    }
   }
 
   function toggle() {
@@ -487,48 +692,68 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
 
   function close() {
     $('geminiDrawer').classList.add('hidden');
+    closeSettingsModal();
     stopListening();
     stopTTS();
   }
 
   /* --------------------------------------------------------------------------
-     4. VOICE ACTIVITY DETECTION (VAD) & TỰ NGẮT SAU ĐÚNG 3 GIÂY IM LẶNG
+     4. VOICE ACTIVITY DETECTION (VAD) & TỰ NGẮT CHUẨN XÁC 3.0 GIÂY
      -------------------------------------------------------------------------- */
-  function clearSilenceTimers() {
-    if (silenceTimer) {
-      clearTimeout(silenceTimer);
-      silenceTimer = null;
-    }
-    if (silenceCountdownInterval) {
-      clearInterval(silenceCountdownInterval);
-      silenceCountdownInterval = null;
-    }
+  function startSilenceMonitoring() {
+    stopSilenceMonitoring();
+    lastSpeechTimestamp = Date.now();
+    const timeout = config.silenceTimeoutMs || 3000;
+
+    const pWrap = $('geminiSilenceProgressWrap');
+    if (pWrap) pWrap.style.display = 'block';
+
+    silenceTicker = setInterval(() => {
+      if (!isListening) {
+        stopSilenceMonitoring();
+        return;
+      }
+
+      if (isUserCurrentlyTalking) {
+        lastSpeechTimestamp = Date.now();
+      }
+
+      const elapsed = Date.now() - lastSpeechTimestamp;
+      const remainingMs = Math.max(0, timeout - elapsed);
+      const remainingSec = Math.ceil(remainingMs / 1000);
+      const percent = Math.min(100, Math.max(0, (remainingMs / timeout) * 100));
+
+      const pBar = $('geminiSilenceProgressBar');
+      if (pBar) pBar.style.width = `${percent}%`;
+
+      if (hasUserSpoken && latestRecognizedText.trim().length > 0) {
+        if (remainingMs > 0) {
+          updateVisualizerStatus(`⏳ Ngưng nói... Tự gửi sau <strong class="silence-timer-digit">${remainingSec}s</strong>`);
+        } else {
+          // TIME IS UP! Auto-send!
+          stopSilenceMonitoring();
+          updateVisualizerStatus('⚡ Đã dừng 3s, gửi lệnh ngay...');
+          const textToSend = latestRecognizedText.trim();
+          stopListening();
+          if (navigator.vibrate) navigator.vibrate([40, 30, 40]);
+          setTimeout(() => ask(textToSend), 120);
+        }
+      } else {
+        updateVisualizerStatus('🎙️ Đang nghe... Hãy nói yêu cầu của bạn!');
+        if (pBar) pBar.style.width = '100%';
+      }
+    }, 80);
   }
 
-  function startSilenceCountdown() {
-    clearSilenceTimers();
-    remainingSilenceSeconds = 3;
-    updateVisualizerStatus(`⏳ Ngưng nói... Tự gửi sau <strong style="color:#FF007A;">${remainingSilenceSeconds}s</strong>`);
-
-    silenceCountdownInterval = setInterval(() => {
-      remainingSilenceSeconds -= 1;
-      if (remainingSilenceSeconds > 0) {
-        updateVisualizerStatus(`⏳ Ngưng nói... Tự gửi sau <strong style="color:#FF007A;">${remainingSilenceSeconds}s</strong>`);
-      } else {
-        clearSilenceTimers();
-      }
-    }, 1000);
-
-    silenceTimer = setTimeout(() => {
-      clearSilenceTimers();
-      if (isListening && latestRecognizedText.trim().length > 0) {
-        const textToSend = latestRecognizedText.trim();
-        updateVisualizerStatus('⚡ Đã ngưng 3s, đang gửi lệnh...');
-        stopListening();
-        if (navigator.vibrate) navigator.vibrate([40, 30, 40]);
-        setTimeout(() => ask(textToSend), 150);
-      }
-    }, config.silenceTimeoutMs || 3000);
+  function stopSilenceMonitoring() {
+    if (silenceTicker) {
+      clearInterval(silenceTicker);
+      silenceTicker = null;
+    }
+    const pWrap = $('geminiSilenceProgressWrap');
+    if (pWrap) pWrap.style.display = 'none';
+    const pBar = $('geminiSilenceProgressBar');
+    if (pBar) pBar.style.width = '100%';
   }
 
   function updateVisualizerStatus(htmlText) {
@@ -569,7 +794,7 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
       cancelAnimationFrame(vadAnimFrame);
       vadAnimFrame = null;
     }
-    clearSilenceTimers();
+    stopSilenceMonitoring();
     if (micAudioStream) {
       micAudioStream.getTracks().forEach(t => t.stop());
       micAudioStream = null;
@@ -608,13 +833,10 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
         b5.style.height = `${Math.max(4, normalizedVol * 14)}px`;
       }
 
-      const SPEECH_THRESHOLD = 18;
-      if (avg > SPEECH_THRESHOLD) {
-        // Người dùng đang nói to -> Hủy đếm ngược, tiếp tục nghe
-        if (silenceTimer) {
-          clearSilenceTimers();
-          updateVisualizerStatus('🎙️ Đang nghe tiếp giọng nói...');
-        }
+      const SPEECH_THRESHOLD = 16;
+      isUserCurrentlyTalking = (avg > SPEECH_THRESHOLD);
+      if (isUserCurrentlyTalking && isListening && hasUserSpoken) {
+        lastSpeechTimestamp = Date.now();
       }
 
       vadAnimFrame = requestAnimationFrame(update);
@@ -674,7 +896,7 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
         if (navigator.vibrate) navigator.vibrate(50);
         $('geminiMicBtn')?.classList.add('recording');
         $('geminiVoiceVisualizerBar')?.classList.add('active');
-        updateVisualizerStatus('🎙️ Đang nghe... (Tự gửi sau 3s ngưng nói)');
+        updateVisualizerStatus('🎙️ Đang nghe... Hãy nói yêu cầu của bạn!');
         const input = $('geminiInput');
         if (input) {
           input.placeholder = '🎙️ Đang nghe... Hãy nói yêu cầu của bạn!';
@@ -698,11 +920,14 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
         if (currentText) {
           latestRecognizedText = currentText;
           hasUserSpoken = true;
+          lastSpeechTimestamp = Date.now();
           const input = $('geminiInput');
           if (input) input.value = currentText;
 
-          // Bắt đầu đếm ngược ĐÚNG 3 GIÂY im lặng kể từ từ ngữ cuối cùng
-          startSilenceCountdown();
+          // Bắt đầu đếm ngược thời gian thực
+          if (!silenceTicker) {
+            startSilenceMonitoring();
+          }
         }
       };
 
@@ -715,21 +940,28 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
       };
 
       speechRecognition.onend = () => {
-        // Tự động duy trì microphone nếu trình duyệt ngắt sớm trước khi hết 3 giây
         if (isListening) {
-          if (silenceTimer) {
-            // Vẫn đang trong thời gian chờ 3 giây -> Khởi động lại STT ngay
-            if (speechRestartCount < 5) {
+          if (hasUserSpoken && latestRecognizedText.trim().length > 0) {
+            const elapsed = Date.now() - lastSpeechTimestamp;
+            if (elapsed >= 1200) {
+              // Đã ngưng nói đủ lâu -> gửi lệnh ngay
+              stopSilenceMonitoring();
+              const textToSend = latestRecognizedText.trim();
+              stopListening();
+              ask(textToSend);
+            } else {
+              if (speechRestartCount < 4) {
+                speechRestartCount++;
+                try { speechRecognition.start(); } catch (err) {}
+              }
+            }
+          } else {
+            if (speechRestartCount < 4) {
               speechRestartCount++;
               try { speechRecognition.start(); } catch (err) {}
+            } else {
+              stopListening();
             }
-          } else if (latestRecognizedText.trim().length > 0) {
-            // Đã hết thời gian và có nội dung
-            const textToSend = latestRecognizedText.trim();
-            stopListening();
-            ask(textToSend);
-          } else {
-            stopListening();
           }
         }
       };
@@ -744,7 +976,7 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
   function stopListening() {
     isListening = false;
     hasUserSpoken = false;
-    clearSilenceTimers();
+    stopSilenceMonitoring();
     try {
       if (speechRecognition) {
         speechRecognition.abort?.();
@@ -865,7 +1097,7 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
   }
 
   /* --------------------------------------------------------------------------
-     6. HIỂN THỊ TIN NHẮN & STREAMING UI
+     6. HIỂN THỊ TIN NHẮN & BADGE HÀNH ĐỘNG
      -------------------------------------------------------------------------- */
   function addMessage(text, role = 'ai', canSpeak = true, actionNotice = null) {
     const body = $('geminiChatBody');
@@ -929,26 +1161,14 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
     return row;
   }
 
-  function showTyping() {
-    const body = $('geminiChatBody');
-    if (!body) return null;
-    const div = document.createElement('div');
-    div.id = 'geminiTypingRow';
-    div.className = 'chat-msg-row ai-row';
-    div.innerHTML = `
-      <div class="chat-avatar ai-avatar">✨</div>
-      <div class="chat-msg-bubble ai-bubble typing-bubble">
-        <span class="dot-typing"></span><span class="dot-typing"></span><span class="dot-typing"></span>
-        <span class="typing-label">Gemini đang phản hồi...</span>
-      </div>
-    `;
-    body.appendChild(div);
-    scrollBottom();
-    return div;
-  }
-
-  function removeTyping() {
-    $('geminiTypingRow')?.remove();
+  function insertActionBadge(rowElement, actionNotice) {
+    if (!rowElement || !actionNotice) return;
+    if (rowElement.querySelector('.action-executed-badge')) return;
+    const badgeElem = document.createElement('div');
+    badgeElem.className = 'action-executed-badge';
+    badgeElem.innerHTML = `<span class="action-check-icon">⚡</span><span>${escapeHTML(actionNotice)}</span>`;
+    const bubble = rowElement.querySelector('.ai-bubble');
+    if (bubble) bubble.insertBefore(badgeElem, bubble.firstChild);
   }
 
   function scrollBottom() {
@@ -957,7 +1177,7 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
   }
 
   /* --------------------------------------------------------------------------
-     7. XỬ LÝ STREAMING GEMINI API VÀ SENTENCE-CHUNKED TTS (Tốc độ phản hồi cao)
+     7. XỬ LÝ STREAMING GEMINI PRO VÀ THỰC THI ACTION NGAY TRONG LUỒNG STREAM
      -------------------------------------------------------------------------- */
   async function ask(promptText) {
     if (isAiWorking) return;
@@ -966,7 +1186,6 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
     stopTTS();
 
     addMessage(promptText, 'user');
-    showTyping();
 
     const contents = chatHistory.slice(-4).map(h => ({
       role: h.role === 'user' ? 'user' : 'model',
@@ -976,24 +1195,42 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
 
     let fullReplyText = '';
     let streamSentenceBuffer = '';
+    let actionAlreadyDispatched = false;
+    let actionNotice = null;
 
-    removeTyping();
+    // PHẢN HỒI TIẾP NHẬN LỆNH NGAY LẬP TỨC (Zero-delay feedback)
     const streamingRow = document.createElement('div');
     streamingRow.className = 'chat-msg-row ai-row';
     streamingRow.innerHTML = `
-      <div class="chat-avatar ai-avatar">✨</div>
+      <div class="chat-avatar ai-avatar">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
+          <path d="M12 2L14.4 9.6L22 12L14.4 14.4L12 22L9.6 14.4L2 12L9.6 9.6L12 2Z" fill="url(#msgGradStandalone)" />
+          <defs>
+            <linearGradient id="msgGradStandalone" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#FF5400" />
+              <stop offset="0.5" stop-color="#FF007A" />
+              <stop offset="1" stop-color="#00E5FF" />
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
       <div class="chat-msg-bubble ai-bubble">
+        <div class="instant-ack-pill">⚡ Đang tiếp nhận lệnh: "${escapeHTML(promptText.length > 40 ? promptText.slice(0, 37) + '...' : promptText)}"</div>
         <div class="bubble-content" id="geminiStreamContent"></div>
         <span class="streaming-cursor"></span>
       </div>
     `;
     $('geminiChatBody')?.appendChild(streamingRow);
     const streamContentElem = $('geminiStreamContent');
+    scrollBottom();
+
+    // Sắp xếp thứ tự gọi mô hình: Ưu tiên mô hình Pro người dùng đã chọn
+    const activeModels = [preferredModel, ...DEFAULT_PRO_MODELS.filter(m => m !== preferredModel)];
 
     try {
       let streamSucceeded = false;
 
-      for (const model of GEMINI_MODELS) {
+      for (const model of activeModels) {
         try {
           const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`, {
             method: 'POST',
@@ -1010,6 +1247,9 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
           });
 
           if (res.ok && res.body) {
+            // Xóa nhãn tiếp nhận tạm thời khi bắt đầu có dữ liệu stream
+            streamingRow.querySelector('.instant-ack-pill')?.remove();
+
             const reader = res.body.getReader();
             const decoder = new TextDecoder('utf-8');
             let buffer = '';
@@ -1039,6 +1279,27 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
                       }
                       scrollBottom();
 
+                      // THỰC THI ACTION NGAY KHI PHÁT HIỆN TRONG LUỒNG STREAM (Không cần đợi hết response)
+                      if (!actionAlreadyDispatched) {
+                        const parsed = extractActionJSON(fullReplyText);
+                        if (parsed) {
+                          actionAlreadyDispatched = true;
+                          try {
+                            if (typeof config.onAction === 'function') {
+                              actionNotice = config.onAction(parsed);
+                            }
+                            if (actionNotice) {
+                              insertActionBadge(streamingRow, actionNotice);
+                              if (window.StarfieldInstance?.createBurst) {
+                                window.StarfieldInstance.createBurst(window.innerWidth / 2, window.innerHeight / 3, 25);
+                              }
+                            }
+                          } catch (e) {
+                            console.error('Real-time action dispatch error:', e);
+                          }
+                        }
+                      }
+
                       // Sentence Chunking phát âm ngay
                       if (autoSpeak) {
                         const sentenceMatch = streamSentenceBuffer.match(/([^\n.?!;]+[.?!;\n]+)/g);
@@ -1061,47 +1322,60 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
         }
       }
 
-      // Xử lý nốt câu còn lại
+      // Xử lý nốt câu còn lại trong buffer
       if (streamSentenceBuffer.trim() && autoSpeak) {
         queueTTSChunk(streamSentenceBuffer.trim());
       }
 
-      if (!streamSucceeded || !fullReplyText.trim()) {
-        fullReplyText = `Đã tiếp nhận yêu cầu: "${promptText}". Tôi sẵn sàng hỗ trợ bạn tiếp theo!`;
-        if (streamContentElem) streamContentElem.innerHTML = formatMarkdown(fullReplyText);
-        if (autoSpeak) queueTTSChunk(fullReplyText);
-      }
-
+      streamingRow.querySelector('.instant-ack-pill')?.remove();
       streamingRow.querySelector('.streaming-cursor')?.remove();
 
-      // TRÍCH XUẤT VÀ TỰ ĐỘNG THỰC THI ACTION CHUẨN XÁC 100%
-      let cleanText = fullReplyText;
-      let actionNotice = null;
-      const parsedAction = extractActionJSON(fullReplyText);
+      // Nếu không kết nối được Gemini Pro (do Key lỗi hoặc mạng), hiển thị thông báo thân thiện và chạy bộ xử lý cục bộ
+      if (!streamSucceeded || !fullReplyText.trim()) {
+        fullReplyText = `Đã tiếp nhận yêu cầu: "${promptText}".`;
+        
+        let errorHelp = `
+          <div style="margin-top:6px; padding:8px 10px; background:rgba(255,240,230,0.8); border:1px solid rgba(255,112,67,0.4); border-radius:10px; font-size:11.5px;">
+            ⚠️ <strong>Chưa thể kết nối Gemini Pro</strong> (API Key hiện tại có thể chưa cấu hình hoặc đã hết hạn).<br>
+            👉 Bạn hãy bấm nút bên dưới để dán <strong>Gemini Pro API Key</strong> của mình nhé:
+            <div style="margin-top:6px;">
+              <button type="button" class="chat-action-inline-btn" id="inlineOpenSettingsBtn">⚙️ Cài Đặt Gemini Pro Key Ngay</button>
+            </div>
+          </div>
+        `;
+        if (streamContentElem) streamContentElem.innerHTML = formatMarkdown(fullReplyText) + errorHelp;
+        const inlineBtn = $('inlineOpenSettingsBtn');
+        if (inlineBtn) inlineBtn.onclick = openSettingsModal;
 
-      if (parsedAction) {
-        cleanText = fullReplyText
-          .replace(/```(?:action|json)[\s\S]*?```/gi, '')
-          .replace(/\{[\s\S]*?"(?:type|action)"[\s\S]*?\}/gi, '')
-          .trim();
+        if (autoSpeak) queueTTSChunk(fullReplyText);
 
-        if (typeof config.onAction === 'function') {
-          try {
-            console.log('⚡ GeminiAssistant: Executing onAction callback with:', parsedAction);
-            actionNotice = config.onAction(parsedAction);
-          } catch (e) {
-            console.error('Action execution callback error:', e);
+        // Chạy Local Smart Intent fallback nếu có onAction
+        if (!actionAlreadyDispatched && typeof config.onAction === 'function') {
+          const fallbackAction = guessActionLocally(promptText);
+          if (fallbackAction) {
+            try {
+              actionNotice = config.onAction(fallbackAction);
+              if (actionNotice) insertActionBadge(streamingRow, actionNotice);
+            } catch (err) {}
+          }
+        }
+      } else {
+        // Kiểm tra lại lần cuối nếu action chưa được dispatch
+        if (!actionAlreadyDispatched) {
+          const parsed = extractActionJSON(fullReplyText);
+          if (parsed && typeof config.onAction === 'function') {
+            try {
+              actionNotice = config.onAction(parsed);
+              if (actionNotice) insertActionBadge(streamingRow, actionNotice);
+            } catch (err) {}
           }
         }
       }
 
-      if (actionNotice) {
-        const badgeElem = document.createElement('div');
-        badgeElem.className = 'action-executed-badge';
-        badgeElem.innerHTML = `<span class="action-check-icon">⚡</span><span>${escapeHTML(actionNotice)}</span>`;
-        const bubble = streamingRow.querySelector('.ai-bubble');
-        if (bubble) bubble.insertBefore(badgeElem, bubble.firstChild);
-      }
+      let cleanText = fullReplyText
+        .replace(/```(?:action|json)[\s\S]*?```/gi, '')
+        .replace(/\{[\s\S]*?"(?:type|action)"[\s\S]*?\}/gi, '')
+        .trim();
 
       const metaDiv = document.createElement('div');
       metaDiv.className = 'bubble-meta';
@@ -1137,6 +1411,17 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
     }
   }
 
+  // Fallback Intent Matching cục bộ
+  function guessActionLocally(text) {
+    if (!text) return null;
+    const t = text.toLowerCase();
+    if (t.includes('quay') || t.includes('bắt đầu') || t.includes('chơi')) return { type: 'START_GAME' };
+    if (t.includes('ván mới') || t.includes('nhập điểm')) return { type: 'OPEN_ROUND_MODAL' };
+    if (t.includes('đặt lại') || t.includes('reset')) return { type: 'RESET_GAME' };
+    if (t.includes('lật bài')) return { type: 'FLIP_CARDS' };
+    return null;
+  }
+
   /* --------------------------------------------------------------------------
      8. EXPORT PUBLIC API
      -------------------------------------------------------------------------- */
@@ -1149,10 +1434,16 @@ Bạn là trợ lý AI chuyên nghiệp, tốc độ cao được tích hợp tr
     speak: speakText,
     stopTTS: stopTTS,
     unlockAudio: unlockAudioContext,
+    openSettings: openSettingsModal,
     setKey: key => {
       apiKey = key;
       localStorage.setItem(STORAGE_KEY, key);
       updateStatus();
+    },
+    setModel: model => {
+      preferredModel = model;
+      localStorage.setItem(STORAGE_MODEL_KEY, model);
+      updateModelBadge();
     }
   };
 }));

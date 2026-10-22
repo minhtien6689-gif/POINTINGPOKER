@@ -691,6 +691,318 @@
   letter-spacing: -0.1px;
 }
 
+/* Gemini Pro Badge */
+.gemini-pro-badge {
+  font-size: 9.5px;
+  font-weight: 800;
+  padding: 1.5px 7px;
+  border-radius: 999px;
+  background: linear-gradient(110deg, #7C3AED, #C026D3, #FF007A);
+  color: #FFFFFF;
+  box-shadow: 0 1px 6px rgba(192, 38, 211, 0.45);
+  letter-spacing: 0.2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  animation: proBadgeGlow 3s ease-in-out infinite alternate;
+  cursor: pointer;
+  user-select: none;
+}
+
+@keyframes proBadgeGlow {
+  0% { box-shadow: 0 1px 5px rgba(192, 38, 211, 0.35); }
+  100% { box-shadow: 0 2px 10px rgba(255, 0, 122, 0.65); transform: translateY(-0.5px); }
+}
+
+/* Silence Countdown & Progress Bar */
+.visualizer-info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.silence-timer-digit {
+  color: #FF007A;
+  font-weight: 800;
+  font-size: 12px;
+  text-shadow: 0 0 6px rgba(255, 0, 122, 0.4);
+}
+
+.silence-progress-wrap {
+  width: 100%;
+  height: 3.5px;
+  background: rgba(224, 184, 168, 0.35);
+  border-radius: 999px;
+  margin-top: 5px;
+  overflow: hidden;
+  position: relative;
+}
+
+.silence-progress-bar {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #22C55E 0%, #EAB308 60%, #EF4444 100%);
+  border-radius: 999px;
+  transition: width 0.1s linear;
+}
+
+/* Instant Acknowledgment & Inline Action */
+.instant-ack-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #7C3AED;
+  background: rgba(124, 58, 237, 0.08);
+  padding: 3px 8px;
+  border-radius: 6px;
+  margin-bottom: 6px;
+  border: 1px dashed rgba(124, 58, 237, 0.3);
+  animation: pulseFade 1.5s infinite alternate;
+}
+
+@keyframes pulseFade {
+  0% { opacity: 0.7; }
+  100% { opacity: 1; }
+}
+
+.chat-action-inline-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #7C3AED, #C026D3);
+  color: #FFFFFF;
+  font-size: 11.5px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.35);
+  transition: all 0.2s ease;
+  touch-action: manipulation;
+}
+
+.chat-action-inline-btn:hover {
+  transform: translateY(-1.5px);
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.5);
+}
+
+.chat-action-inline-btn:active {
+  transform: scale(0.96);
+}
+
+/* Settings Modal Overlay */
+.gemini-settings-modal {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 248, 242, 0.96);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  border-radius: 24px;
+  padding: 16px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.6);
+}
+
+.gemini-settings-modal.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.95);
+}
+
+.settings-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(224, 184, 168, 0.4);
+}
+
+.settings-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--gemini-text-primary);
+  margin: 0;
+}
+
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+}
+
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gemini-text-secondary);
+}
+
+.settings-input-row {
+  display: flex;
+  align-items: center;
+  background: var(--gemini-bg-card);
+  border: 1px solid rgba(224, 184, 168, 0.5);
+  border-radius: 10px;
+  padding: 4px 8px;
+  box-shadow: var(--gemini-neu-inset);
+}
+
+.settings-text-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--gemini-text-primary);
+  padding: 4px 2px;
+}
+
+.settings-icon-toggle {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 4px;
+  color: var(--gemini-text-muted);
+}
+
+.settings-select {
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(224, 184, 168, 0.5);
+  background: var(--gemini-bg-card);
+  font-family: var(--gemini-font);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gemini-text-primary);
+  outline: none;
+  box-shadow: var(--gemini-neu-flat);
+}
+
+.settings-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-slider {
+  flex: 1;
+  accent-color: var(--gemini-primary);
+}
+
+.settings-slider-val {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--gemini-primary);
+  min-width: 32px;
+}
+
+.settings-btn-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.settings-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-family: var(--gemini-font);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  transition: all 0.2s ease;
+  touch-action: manipulation;
+}
+
+.settings-btn-test {
+  background: var(--gemini-bg-deep);
+  color: var(--gemini-text-primary);
+  border: 1px solid rgba(224, 184, 168, 0.6);
+  box-shadow: var(--gemini-neu-flat);
+}
+
+.settings-btn-save {
+  background: linear-gradient(135deg, #7C3AED, #C026D3, #FF7043);
+  color: #FFFFFF;
+  box-shadow: 0 3px 10px rgba(124, 58, 237, 0.35);
+}
+
+.settings-btn:hover {
+  transform: translateY(-1.5px);
+}
+
+.settings-btn:active {
+  transform: scale(0.97);
+}
+
+.settings-status-box {
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  display: none;
+  margin-top: 6px;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-status-box.active {
+  display: flex;
+}
+
+.settings-status-box.success {
+  background: #ECFDF5;
+  border: 1px solid #6EE7B7;
+  color: #065F46;
+}
+
+.settings-status-box.error {
+  background: #FEF2F2;
+  border: 1px solid #FCA5A5;
+  color: #991B1B;
+}
+
+.settings-help-text {
+  font-size: 10px;
+  color: var(--gemini-text-muted);
+  line-height: 1.4;
+  margin-top: 6px;
+}
+
+.settings-help-text a {
+  color: #7C3AED;
+  text-decoration: none;
+  font-weight: 700;
+}
+
 /* Animations */
 @keyframes rainbowFlowText {
   0% { background-position: 0% 50%; }
@@ -733,3 +1045,4 @@
     font-size: 9px;
   }
 }
+
